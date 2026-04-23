@@ -74,11 +74,17 @@ To run the pipeline manually:
 python3 src/main.py
 ```
 
-### Running Scheduled
-To run the scheduler that checks the time and executes the pipeline at 16:05 IST daily:
+### Running Scheduled (Local)
+To run the scheduler locally via the background daemon:
 ```bash
 python3 scheduler.py
 ```
+
+### Running Scheduled (GitHub Actions)
+A GitHub Actions workflow is defined in `.github/workflows/nightly-run.yml`.
+- It runs automatically at **16:05 IST (10:35 UTC)** on weekdays.
+- **Database Updates**: Since GitHub Actions runs on ephemeral runners, the workflow automatically commits the updated `data/universe.duckdb` file and pushes it back to the repository's main branch at the end of each run, ensuring data persistence.
+- **Secrets**: Add your `GEMINI_API_KEY`, `TELEGRAM_BOT_TOKEN`, and `TELEGRAM_CHAT_ID` as GitHub Secrets in your repository settings (`Settings -> Secrets and variables -> Actions`).
 
 ## Telegram Setup Instructions
 
