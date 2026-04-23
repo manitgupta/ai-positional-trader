@@ -1,0 +1,8 @@
+duckdb
+pandas
+pandas-ta
+yfinance
+requests
+google-genai
+python-dotenv
+beautifulsoup4
