@@ -68,10 +68,12 @@ class SignalComputer:
         df['vol_sma_20'] = ta.sma(df['volume'], length=20)
         df['volume_ratio_20d'] = df['volume'] / df['vol_sma_20']
         
-        # RS Rank Placeholder
-        # In a full implementation, this would compare returns against Nifty or other stocks
-        # Here we just use a simple momentum score as a proxy for ranking later
-        df['rs_rank'] = 50 # Default placeholder
+        # Calculate 12 month momentum for RS Rank
+        df['close_shift_252'] = df['close'].shift(252)
+        df['close_shift_252'] = df['close_shift_252'].fillna(df['close'].iloc[0])
+        df['raw_momentum_12m'] = (df['close'] - df['close_shift_252']) / df['close_shift_252'] * 100
+        
+        df['rs_rank'] = 50 # Will be populated globally later
         
         # Reset index to get date column back
         df = df.reset_index(drop=True)
@@ -79,7 +81,7 @@ class SignalComputer:
         # Select columns matching schema
         result_df = df[['symbol', 'date', 'rsi_14', 'adx_14', 'atr_14', 'macd_hist', 
                         'sma_50', 'sma_150', 'sma_200', 'above_200ma', 'rs_rank', 
-                        'pct_from_52w_high', 'volume_ratio_20d']]
+                        'raw_momentum_12m', 'pct_from_52w_high', 'volume_ratio_20d']]
         
         # Drop rows where critical signals are NaN (e.g. due to MA lag)
         result_df = result_df.dropna(subset=['sma_200'])
@@ -99,7 +101,7 @@ class SignalComputer:
                 INSERT OR IGNORE INTO signals 
                 SELECT symbol, date, rsi_14, adx_14, atr_14, macd_hist, 
                        sma_50, sma_150, sma_200, above_200ma, rs_rank, 
-                       pct_from_52w_high, volume_ratio_20d 
+                       raw_momentum_12m, pct_from_52w_high, volume_ratio_20d 
                 FROM df_view
             """)
             print(f"Saved {len(df)} signal rows to DB.")

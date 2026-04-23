@@ -25,9 +25,9 @@ MAX_SECTOR_EXPOSURE_PCT = 25         # max 25% in any one sector
 RISK_PER_TRADE_PCT = 2               # max 2% portfolio at risk per trade
 
 # Gemini
-GEMINI_MODEL = "gemini-2.5-pro"
+GEMINI_MODEL = "gemini-2.5-flash"
 GEMINI_MAX_OUTPUT_TOKENS = 8000
-GEMINI_THINKING_BUDGET = 8000        # controls reasoning depth vs cost
+GEMINI_THINKING_BUDGET = 1024
 
 # Schedule
 RUN_TIME_IST = "16:05"               # 35 min after market close

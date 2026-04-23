@@ -51,6 +51,27 @@ def run_nightly_pipeline():
             signals_df = computer.compute_signals(df)
             computer.save_signals(signals_df)
             
+    # Compute RS Rank percentiles globally
+    print("Computing global RS Rank percentiles...")
+    conn = duckdb.connect(DB_PATH)
+    latest_signals_df = conn.execute("""
+        SELECT symbol, date, raw_momentum_12m
+        FROM signals
+        QUALIFY ROW_NUMBER() OVER(PARTITION BY symbol ORDER BY date DESC) = 1
+    """).fetchdf()
+    
+    if not latest_signals_df.empty:
+        latest_signals_df['rs_rank'] = (latest_signals_df['raw_momentum_12m'].rank(pct=True) * 100).astype(int)
+        
+        for index, row in latest_signals_df.iterrows():
+            conn.execute("""
+                UPDATE signals 
+                SET rs_rank = ? 
+                WHERE symbol = ? AND date = ?
+            """, (int(row['rs_rank']), row['symbol'], row['date']))
+            
+    conn.close()
+            
     # 2. Screener - Step 1: Technical Hard Filters
     print("\n--- Phase 2: Screener (Technical Hard Filters) ---")
     conn = duckdb.connect(DB_PATH)

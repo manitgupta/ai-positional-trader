@@ -3,13 +3,14 @@ from google import genai
 from google.genai import types
 from dotenv import load_dotenv
 from src.analyst.prompts import SYSTEM_PROMPT
+from config import GEMINI_MODEL, GEMINI_THINKING_BUDGET
 
 load_dotenv()
 
 class GeminiAnalyst:
     def __init__(self):
         self.api_key = os.environ.get("GEMINI_API_KEY")
-        self.model_name = "gemini-2.5-pro"
+        self.model_name = GEMINI_MODEL
         
         if not self.api_key:
             raise ValueError("GEMINI_API_KEY environment variable is required.")
@@ -25,7 +26,7 @@ class GeminiAnalyst:
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_PROMPT,
                 temperature=1.0,
-                thinking_config=types.ThinkingConfig(thinking_budget=8000),
+                thinking_config=types.ThinkingConfig(thinking_budget=GEMINI_THINKING_BUDGET),
             ),
         )
         return response.text

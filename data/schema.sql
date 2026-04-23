@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS signals (
     sma_200         DOUBLE,
     above_200ma     BOOLEAN,
     rs_rank         INTEGER,     -- percentile vs Nifty 50, 0-100
+    raw_momentum_12m DOUBLE,     -- 12 month raw percentage return
     pct_from_52w_high DOUBLE,
     volume_ratio_20d  DOUBLE,    -- today's vol / 20d avg
     PRIMARY KEY (symbol, date)
