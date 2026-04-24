@@ -5,18 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 def send_telegram_message(message):
-    """
-    Sends a message to a Telegram chat.
-    
-    Instructions to set up Telegram Bot:
-    1. Search for '@BotFather' on Telegram.
-    2. Send '/newbot' and follow instructions to get a Bot Token.
-    3. Add the token to your .env file as TELEGRAM_BOT_TOKEN.
-    4. To get your Chat ID, send a message to your bot and then visit:
-       https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates
-       Look for "chat":{"id":...} in the JSON response.
-    5. Add the chat ID to your .env file as TELEGRAM_CHAT_ID.
-    """
+    """Sends a message to a Telegram chat, splitting it if it exceeds limits."""
     bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     chat_id = os.environ.get("TELEGRAM_CHAT_ID")
     
@@ -25,22 +14,42 @@ def send_telegram_message(message):
         print(message)
         return False
         
-    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-    payload = {
-        "chat_id": chat_id,
-        "text": message
-    }
+    MAX_LENGTH = 4096
     
-    try:
-        response = requests.post(url, json=payload)
-        if response.status_code == 200:
+    def send_chunk(text):
+        url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+        payload = {
+            "chat_id": chat_id,
+            "text": text
+        }
+        try:
+            response = requests.post(url, json=payload)
+            return response.status_code == 200
+        except Exception as e:
+            print(f"Error sending Telegram chunk: {e}")
+            return False
+
+    if len(message) <= MAX_LENGTH:
+        success = send_chunk(message)
+        if success:
             print("Telegram message sent successfully.")
             return True
         else:
-            print(f"Failed to send Telegram message. Status: {response.status_code}, Response: {response.text}")
+            print("Failed to send Telegram message.")
             return False
-    except Exception as e:
-        print(f"Error sending Telegram message: {e}")
+    else:
+        print(f"Message too long ({len(message)} chars). Splitting into chunks...")
+        chunks = [message[i:i+MAX_LENGTH] for i in range(0, len(message), MAX_LENGTH)]
+        all_success = True
+        for i, chunk in enumerate(chunks):
+            print(f"Sending chunk {i+1}/{len(chunks)}...")
+            if not send_chunk(chunk):
+                all_success = False
+                print(f"Failed to send chunk {i+1}")
+        
+        if all_success:
+            print("All Telegram chunks sent successfully.")
+            return True
         return False
 
 if __name__ == "__main__":
