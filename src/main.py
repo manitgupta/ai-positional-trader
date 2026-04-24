@@ -196,7 +196,7 @@ def run_nightly_pipeline():
         decisions_list = block.get('decisions', [])
         
         for dec in decisions_list:
-            symbol = dec.get('symbol')
+            symbol = dec.get('symbol') or dec.get('ticker')
             action = dec.get('action')
             thesis = dec.get('thesis')
             conviction = dec.get('conviction')
