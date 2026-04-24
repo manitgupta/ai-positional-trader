@@ -20,7 +20,7 @@ class GeminiAnalyst:
             
     def generate_memo(self, context: str) -> str:
         import time
-        max_retries = 5
+        max_retries = 10
         retry_delay = 2
         
         for attempt in range(max_retries):
@@ -46,19 +46,29 @@ class GeminiAnalyst:
 
     def generate_summary(self, memo: str, prompt: str) -> str:
         """Generate a concise summary of the memo for Telegram."""
-        print(f"Calling Gemini ({self.model_name}) for summary...")
-        try:
-            response = self.client.models.generate_content(
-                model=self.model_name,
-                contents=f"{prompt}\n\nResearch Memo:\n{memo}",
-                config=types.GenerateContentConfig(
-                    temperature=0.7,
-                ),
-            )
-            return response.text
-        except Exception as e:
-            print(f"Error generating summary: {e}")
-            return "Failed to generate summary."
+        import time
+        max_retries = 10
+        retry_delay = 2
+        
+        for attempt in range(max_retries):
+            print(f"Calling Gemini ({self.model_name}) for summary... (Attempt {attempt + 1}/{max_retries})")
+            try:
+                response = self.client.models.generate_content(
+                    model=self.model_name,
+                    contents=f"{prompt}\n\nResearch Memo:\n{memo}",
+                    config=types.GenerateContentConfig(
+                        temperature=0.7,
+                    ),
+                )
+                return response.text
+            except Exception as e:
+                print(f"Error generating summary: {e}")
+                if attempt < max_retries - 1:
+                    print(f"Retrying in {retry_delay}s...")
+                    time.sleep(retry_delay)
+                    retry_delay *= 2
+                else:
+                    return "Failed to generate summary."
 
 if __name__ == "__main__":
     analyst = GeminiAnalyst()
