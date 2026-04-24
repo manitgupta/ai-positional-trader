@@ -17,6 +17,18 @@ CREATE TABLE IF NOT EXISTS prices (
     PRIMARY KEY (symbol, date)
 );
 
+-- Weekly price table
+CREATE TABLE IF NOT EXISTS weekly_prices (
+    symbol       VARCHAR,
+    date         DATE,
+    open         DOUBLE,
+    high         DOUBLE,
+    low          DOUBLE,
+    close        DOUBLE,
+    volume       BIGINT,
+    PRIMARY KEY (symbol, date)
+);
+
 -- Derived technical signals (recomputed nightly)
 CREATE TABLE IF NOT EXISTS signals (
     symbol          VARCHAR,

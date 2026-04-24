@@ -11,6 +11,7 @@ sys.path.append(base_dir)
 
 from config import DB_PATH
 from src.pipeline.fetch_prices import PriceFetcher
+from src.pipeline.fetch_weekly import WeeklyPriceFetcher
 from src.pipeline.compute_signals import SignalComputer
 from src.pipeline.fetch_fundamentals import FundamentalsManager
 from src.pipeline.fetch_news import NewsFetcher
@@ -42,6 +43,12 @@ def run_nightly_pipeline():
     # Fetch prices in batches
     price_df = fetcher.fetch_batch_eod_data(universe_symbols, from_date, to_date, chunk_size=100)
     fetcher.save_to_db(price_df)
+    
+    # Fetch weekly prices in batches
+    print("Fetching weekly prices for full universe...")
+    weekly_fetcher = WeeklyPriceFetcher(DB_PATH)
+    weekly_df = weekly_fetcher.fetch_batch_weekly_data(universe_symbols, chunk_size=100)
+    weekly_fetcher.save_to_db(weekly_df)
         
     computer = SignalComputer(DB_PATH)
     print("Computing technical signals for full universe...")

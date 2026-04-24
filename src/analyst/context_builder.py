@@ -78,11 +78,23 @@ Leading Sectors: IT, Auto, Capital Goods.
                         JOIN prices p ON s.symbol = p.symbol AND s.date = p.date
                         WHERE s.symbol = '{symbol}'
                         ORDER BY s.date DESC
-                        LIMIT 5
+                        LIMIT 30
                     """
                     history = conn.execute(query).fetchdf()
-                    candidates_text += f"\n--- {symbol} (Last 5 Days) ---\n"
+                    candidates_text += f"\n--- {symbol} (Last 30 Days) ---\n"
                     candidates_text += history.to_string(index=False) + "\n"
+                    
+                    # Fetch last 5 weekly candles
+                    weekly_query = f"""
+                        SELECT date, open, high, low, close, volume
+                        FROM weekly_prices
+                        WHERE symbol = '{symbol}'
+                        ORDER BY date DESC
+                        LIMIT 5
+                    """
+                    weekly_history = conn.execute(weekly_query).fetchdf()
+                    candidates_text += f"\n--- {symbol} (Last 5 Weeks) ---\n"
+                    candidates_text += weekly_history.to_string(index=False) + "\n"
             except Exception as e:
                 print(f"Error fetching history for candidates: {e}")
                 candidates_text += f"\nError fetching history for {symbol}\n"
@@ -101,7 +113,7 @@ Leading Sectors: IT, Auto, Capital Goods.
 ## Your research notes — last 45 days
 {prior_notes.to_string() if not prior_notes.empty else "No prior research notes."}
 
-## Today's screener candidates (with last 5 days history)
+## Today's screener candidates (with last 30 days history)
 {candidates_text}
 """
         return context
