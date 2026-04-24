@@ -122,6 +122,7 @@ def run_nightly_pipeline():
                 SELECT symbol, status, date,
                 ROW_NUMBER() OVER(PARTITION BY symbol ORDER BY date DESC) as rn
                 FROM research_journal
+                WHERE date > current_date - INTERVAL 30 DAY
             ) WHERE rn = 1 AND status IN ('watchlist', 'watchlist_entry', 'WATCH_FOR_ENTRY', 'buy_setup')
         """).fetchdf()['symbol'].tolist()
     except Exception:

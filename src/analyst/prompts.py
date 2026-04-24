@@ -31,11 +31,9 @@ Only write up stocks where conviction >= 7. If today's list has no strong setups
 say so explicitly. Do not force trades.
 
 SECTION 3: WATCHLIST
-For stocks you're tracking but not ready to enter, note what specific trigger
-(price level, volume event, earnings result) would change that.
+For stocks you're tracking but not ready to enter, note what specific trigger (price level, volume event, earnings result) would change that. If a stock you were tracking has failed its setup or is no longer attractive, explicitly state that it should be removed from the watchlist.
 
-After each section, output a JSON block with structured data for the portfolio 
-management system to parse. Format:
+After each section, output a JSON block with structured data for the portfolio management system to parse. Format:
 
 ```json
 {
@@ -43,4 +41,6 @@ management system to parse. Format:
   "decisions": [...]
 }
 ```
+
+For the Watchlist section, use actions like "watchlist_entry" or "watchlist" for stocks to keep tracking, and "remove_from_watchlist" for stocks that should be dropped.
 """
