@@ -213,19 +213,21 @@ def run_nightly_pipeline():
     # 7. Generate Telegram Summary
     print("\n--- Phase 6: Generate Telegram Summary ---")
     summary_prompt = """
-    You are a professional equity research editor. Summarize the research memo above into a visually stunning, highly readable Telegram message.
+    You are a professional equity research editor. Summarize the research memo above into a visually stunning, highly readable Telegram message using HTML tags.
     
     Follow these styling rules to make it look rich and premium:
     1. Use Emojis extensively to add color and structure (e.g., 🚀 for Buy Setups, 👀 for Watchlist, 🎯 for Targets, 🛑 for Stop Loss, 📈 for RS Rank).
-    2. Use *ALL CAPS BOLD* for section headers.
-    3. Use monospaced code blocks (```) to display key metrics and triggers cleanly.
+    2. Use <b>ALL CAPS BOLD</b> for section headers.
+    3. Use <pre>...</pre> to display key metrics and triggers cleanly.
     4. Keep it under 4000 characters so it fits in a single message.
-    5. Do NOT include raw JSON blocks.
+    5. Output ONLY valid HTML. Do NOT use Markdown tags like ** or *.
+    
+    Telegram supports only these tags: <b>, <i>, <u>, <s>, <a>, <code>, <pre>. Do NOT use any other tags like <p>, <h1>, <ul> etc.
     
     Structure the message with:
     - A professional header with the date.
-    - A 🚀 *BUY SETUPS* section with clean, structured details for each top candidate.
-    - A 👀 *WATCHLIST* section with specific triggers.
+    - A 🚀 <b>BUY SETUPS</b> section with clean, structured details for each top candidate.
+    - A 👀 <b>WATCHLIST</b> section with specific triggers.
     """
     summary = analyst.generate_summary(memo, summary_prompt)
     

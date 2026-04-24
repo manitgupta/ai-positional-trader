@@ -6,28 +6,21 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-def markdown_to_telegram_html(text):
-    """Converts a subset of Markdown to Telegram-compatible HTML."""
-    # 1. Escape HTML special characters first
-    text = html.escape(text)
+def sanitize_telegram_html(html_content):
+    """Sanitizes HTML content to only include tags supported by Telegram."""
+    # Replace common unsupported tags with supported ones or text equivalents
+    html_content = re.sub(r'<h1>(.*?)</h1>', r'<b>\1</b>\n', html_content, flags=re.IGNORECASE)
+    html_content = re.sub(r'<h2>(.*?)</h2>', r'<b>\1</b>\n', html_content, flags=re.IGNORECASE)
+    html_content = re.sub(r'<h3>(.*?)</h3>', r'<b>\1</b>\n', html_content, flags=re.IGNORECASE)
+    html_content = re.sub(r'<p>(.*?)</p>', r'\1\n', html_content, flags=re.IGNORECASE)
+    html_content = re.sub(r'<li>(.*?)</li>', r'• \1\n', html_content, flags=re.IGNORECASE)
+    html_content = re.sub(r'<ul>(.*?)</ul>', r'\1', html_content, flags=re.DOTALL | re.IGNORECASE)
+    html_content = re.sub(r'<ol>(.*?)</ol>', r'\1', html_content, flags=re.DOTALL | re.IGNORECASE)
     
-    # 2. Convert Code blocks (handle optional language identifier)
-    text = re.sub(r'```(?:[a-zA-Z]+)?\n(.*?)\n```', r'<pre>\1</pre>', text, flags=re.DOTALL)
+    # Strip any other remaining tags that Telegram doesn't support
+    html_content = re.sub(r'<(?!\/?(b|strong|i|em|u|ins|s|strike|del|a|code|pre)\b)[^>]+>', '', html_content)
     
-    # 3. Convert Inline code
-    text = re.sub(r'`(.*?)`', r'<code>\1</code>', text)
-    
-    # 4. Convert Bold (handle *** and ** )
-    text = re.sub(r'\*\*\*(.*?)\*\*\*', r'<b>\1</b>', text)
-    text = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', text)
-    
-    # 5. Convert Italic
-    text = re.sub(r'_(.*?)_', r'<i>\1</i>', text)
-    
-    # 6. Convert Headers (H1-H6) to Bold
-    text = re.sub(r'^#+ (.*)', r'<b>\1</b>', text, flags=re.MULTILINE)
-    
-    return text
+    return html_content
 
 def send_telegram_message(message):
     """Sends a message to a Telegram chat, converting markdown to HTML and splitting if needed."""
@@ -39,8 +32,8 @@ def send_telegram_message(message):
         print(message)
         return False
         
-    # Convert to HTML
-    html_message = markdown_to_telegram_html(message)
+    # Convert to HTML (Gemini outputs HTML now, so we just sanitize it)
+    html_message = sanitize_telegram_html(message)
     
     MAX_LENGTH = 4000 # Leave buffer
     
