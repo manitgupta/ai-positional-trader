@@ -46,10 +46,27 @@ def run_nightly_pipeline():
     computer = SignalComputer(DB_PATH)
     print("Computing technical signals for full universe...")
     for symbol in universe_symbols:
-        df = computer.load_prices(symbol)
+        last_date = computer.get_last_signal_date(symbol)
+        
+        if last_date:
+            # We need 252 days of history for 52w high and momentum
+            # Let's load from 300 days before last_date to be safe
+            start_date = last_date - datetime.timedelta(days=300)
+            df = computer.load_prices(symbol, start_date=start_date)
+        else:
+            df = computer.load_prices(symbol)
+            
         if not df.empty and len(df) >= 200:
             signals_df = computer.compute_signals(df)
-            computer.save_signals(signals_df)
+            
+            if last_date:
+                # Only keep signals after last_date
+                signals_df['date_obj'] = pd.to_datetime(signals_df['date']).dt.date
+                signals_df = signals_df[signals_df['date_obj'] > last_date]
+                signals_df = signals_df.drop(columns=['date_obj'])
+                
+            if not signals_df.empty:
+                computer.save_signals(signals_df)
             
     # Compute RS Rank percentiles globally
     print("Computing global RS Rank percentiles...")

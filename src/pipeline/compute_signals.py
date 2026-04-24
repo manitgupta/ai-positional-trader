@@ -10,11 +10,33 @@ class SignalComputer:
     def __init__(self, db_path):
         self.db_path = db_path
 
-    def load_prices(self, symbol):
+    def get_last_signal_date(self, symbol):
+        """Get the latest date stored in the signals table for a symbol."""
+        conn = duckdb.connect(self.db_path)
+        try:
+            res = conn.execute("SELECT MAX(date) FROM signals WHERE symbol = ?", (symbol,)).fetchone()
+            if res and res[0]:
+                import datetime
+                if isinstance(res[0], str):
+                    return datetime.datetime.strptime(res[0], "%Y-%m-%d").date()
+                elif isinstance(res[0], datetime.datetime):
+                    return res[0].date()
+                elif isinstance(res[0], datetime.date):
+                    return res[0]
+            return None
+        except Exception:
+            return None
+        finally:
+            conn.close()
+
+    def load_prices(self, symbol, start_date=None):
         """Load prices from DB for a symbol."""
         conn = duckdb.connect(self.db_path)
         try:
-            query = f"SELECT * FROM prices WHERE symbol = '{symbol}' ORDER BY date"
+            if start_date:
+                query = f"SELECT * FROM prices WHERE symbol = '{symbol}' AND date >= '{start_date}' ORDER BY date"
+            else:
+                query = f"SELECT * FROM prices WHERE symbol = '{symbol}' ORDER BY date"
             df = conn.execute(query).fetchdf()
             return df
         except Exception as e:
