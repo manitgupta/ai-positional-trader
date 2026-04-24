@@ -193,12 +193,19 @@ def run_nightly_pipeline():
     # 7. Generate Telegram Summary
     print("\n--- Phase 6: Generate Telegram Summary ---")
     summary_prompt = """
-    You are a strict editor. Summarize the research memo above into a concise Telegram message.
-    Focus on:
-    1. The top Buy Setups with their symbols, specific entry triggers, and targets.
-    2. The key Watchlist stocks and what to watch for.
-    Keep it under 4000 characters. Use bold text for emphasis and make it very readable.
-    Do NOT include raw JSON blocks.
+    You are a professional equity research editor. Summarize the research memo above into a visually stunning, highly readable Telegram message.
+    
+    Follow these styling rules to make it look rich and premium:
+    1. Use Emojis extensively to add color and structure (e.g., 🚀 for Buy Setups, 👀 for Watchlist, 🎯 for Targets, 🛑 for Stop Loss, 📈 for RS Rank).
+    2. Use *ALL CAPS BOLD* for section headers.
+    3. Use monospaced code blocks (```) to display key metrics and triggers cleanly.
+    4. Keep it under 4000 characters so it fits in a single message.
+    5. Do NOT include raw JSON blocks.
+    
+    Structure the message with:
+    - A professional header with the date.
+    - A 🚀 *BUY SETUPS* section with clean, structured details for each top candidate.
+    - A 👀 *WATCHLIST* section with specific triggers.
     """
     summary = analyst.generate_summary(memo, summary_prompt)
     
