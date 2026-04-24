@@ -45,6 +45,9 @@ def run_nightly_pipeline():
         
     computer = SignalComputer(DB_PATH)
     print("Computing technical signals for full universe...")
+    updated_count = 0
+    skipped_count = 0
+    
     for symbol in universe_symbols:
         last_date = computer.get_last_signal_date(symbol)
         
@@ -67,6 +70,13 @@ def run_nightly_pipeline():
                 
             if not signals_df.empty:
                 computer.save_signals(signals_df)
+                updated_count += 1
+            else:
+                skipped_count += 1
+        else:
+            skipped_count += 1
+            
+    print(f"Completed technical signals: {updated_count} updated, {skipped_count} skipped.")
             
     # Compute RS Rank percentiles globally
     print("Computing global RS Rank percentiles...")
