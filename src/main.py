@@ -51,26 +51,46 @@ def run_nightly_pipeline():
     weekly_fetcher.save_to_db(weekly_df)
         
     computer = SignalComputer(DB_PATH)
-    print("Computing technical signals for full universe...")
-    updated_count = 0
-    skipped_count = 0
+    print("Checking which symbols need technical signals update...")
     
-    for symbol in universe_symbols:
-        last_date = computer.get_last_signal_date(symbol)
+    conn = duckdb.connect(DB_PATH)
+    to_update_df = conn.execute("""
+        SELECT p.symbol, MAX(s.date) as max_signal_date
+        FROM prices p
+        LEFT JOIN signals s ON p.symbol = s.symbol
+        GROUP BY p.symbol
+        HAVING MAX(p.date) > MAX(s.date) OR MAX(s.date) IS NULL
+    """).fetchdf()
+    conn.close()
+    
+    symbols_to_update = to_update_df['symbol'].tolist()
+    print(f"{len(symbols_to_update)} symbols need signal computation.")
+    
+    updated_count = 0
+    skipped_count = len(universe_symbols) - len(symbols_to_update)
+    
+    for symbol in symbols_to_update:
+        row = to_update_df[to_update_df['symbol'] == symbol].iloc[0]
+        last_date = row['max_signal_date']
         
-        if last_date:
-            # We need 252 days of history for 52w high and momentum
-            # Let's load from 300 days before last_date to be safe
+        if pd.notna(last_date):
+            if isinstance(last_date, str):
+                last_date = datetime.datetime.strptime(last_date, "%Y-%m-%d").date()
+            elif isinstance(last_date, datetime.datetime):
+                last_date = last_date.date()
+            elif isinstance(last_date, datetime.date):
+                last_date = last_date
+                
             start_date = last_date - datetime.timedelta(days=300)
             df = computer.load_prices(symbol, start_date=start_date)
         else:
             df = computer.load_prices(symbol)
+            last_date = None
             
         if not df.empty and len(df) >= 200:
             signals_df = computer.compute_signals(df)
             
             if last_date:
-                # Only keep signals after last_date
                 signals_df['date_obj'] = pd.to_datetime(signals_df['date']).dt.date
                 signals_df = signals_df[signals_df['date_obj'] > last_date]
                 signals_df = signals_df.drop(columns=['date_obj'])
@@ -78,10 +98,6 @@ def run_nightly_pipeline():
             if not signals_df.empty:
                 computer.save_signals(signals_df)
                 updated_count += 1
-            else:
-                skipped_count += 1
-        else:
-            skipped_count += 1
             
     print(f"Completed technical signals: {updated_count} updated, {skipped_count} skipped.")
             

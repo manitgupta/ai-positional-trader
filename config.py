@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 
 # Universe
 NSE_UNIVERSE_MIN_MCAP_CR = 500       # exclude micro caps below ₹500 Cr
@@ -25,7 +25,7 @@ MAX_SECTOR_EXPOSURE_PCT = 25         # max 25% in any one sector
 RISK_PER_TRADE_PCT = 2               # max 2% portfolio at risk per trade
 
 # Gemini
-GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MODEL = "gemini-2.5-pro"
 
 # Schedule
 RUN_TIME_IST = "16:05"               # 35 min after market close

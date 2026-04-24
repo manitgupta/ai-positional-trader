@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from src.analyst.prompts import SYSTEM_PROMPT
 from config import GEMINI_MODEL
 
-load_dotenv()
+load_dotenv(override=True)
 
 class GeminiAnalyst:
     def __init__(self):
