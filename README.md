@@ -86,6 +86,18 @@ A GitHub Actions workflow is defined in `.github/workflows/nightly-run.yml`.
 - **Database Updates**: Since GitHub Actions runs on ephemeral runners, the workflow automatically commits the updated `data/universe.duckdb` file and pushes it back to the repository's main branch at the end of each run, ensuring data persistence.
 - **Secrets**: Add your `GEMINI_API_KEY`, `TELEGRAM_BOT_TOKEN`, and `TELEGRAM_CHAT_ID` as GitHub Secrets in your repository settings (`Settings -> Secrets and variables -> Actions`).
 
+## How to Use the Bot (Trading Strategy)
+
+The bot is designed to be a nightly advisor. It does not execute trades automatically. Here is how you should use its output:
+
+1. **Review the Nightly Telegram Message**: Every night after market close, read the summary message sent to your Telegram.
+2. **Focus on "Buy Setups"**: These are stocks in a low-risk entry position. 
+   * **DO NOT buy them immediately** at the market open.
+   * Set an alert in your trading terminal (e.g., Zerodha, Groww) for the specific **Entry Trigger** price provided by the bot.
+   * Only take the trade if the stock crosses the trigger price on strong volume during market hours.
+3. **Use the Watchlist**: These are great stocks that are currently too extended or need more time to consolidate. Add them to your broker's watchlist and wait for them to form a proper base. They may graduate to "Buy Setups" in future runs.
+4. **Respect Risk Management**: Always set the **Stop Loss** provided by the bot to protect your capital.
+
 ## Telegram Setup Instructions
 
 To enable Telegram notifications:
