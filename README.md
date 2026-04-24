@@ -4,38 +4,7 @@ A nightly batch system that behaves like a disciplined equity analyst for the In
 
 ## Project Structure
 
-```
-trading-bot/
-├── config.py                  # Configuration parameters
-├── requirements.txt           # Python dependencies
-├── scheduler.py               # Simple time check scheduler
-├── data/
-│   ├── schema.sql             # DuckDB schema
-│   └── universe.duckdb        # Main database (created on init)
-└── src/
-    ├── pipeline/
-    │   ├── initialize_db.py   # DB initialization script
-    │   ├── load_universe.py   # Loads full NSE symbols list into DB
-    │   ├── fetch_prices.py    # Price fetcher (Yahoo Finance)
-    │   ├── compute_signals.py   # Signal computer (pandas-ta)
-    │   ├── fetch_fundamentals.py # Fundamentals fetcher (Trendlyne Scraper)
-    │   └── fetch_news.py        # News fetcher (Live RSS)
-    ├── screener/
-    │   ├── filters.py         # Hard-filter logic
-    │   ├── scorer.py          # Composite scoring
-    │   └── test_screener.py   # Screener test script
-    ├── analyst/
-    │   ├── prompts.py         # System prompt for Gemini
-    │   ├── context_builder.py # Gemini context assembler
-    │   ├── gemini_call.py     # API caller (google-genai)
-    │   └── parser.py          # JSON extractor from memo
-    ├── portfolio/
-    │   ├── journal.py         # Research journal manager
-    │   └── manager.py         # Portfolio state manager
-    ├── notifications/
-    │   └── telegram.py        # Telegram notification sender
-    └── main.py                # Main orchestrator
-```
+For detailed technical architecture, data flow pipeline, and folder structure, please see the [ARCHITECTURE.md](file:///Users/manitgupta/experiments/ai-positional-trader/ARCHITECTURE.md) file.
 
 ## Setup Instructions
 
