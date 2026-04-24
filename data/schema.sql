@@ -96,5 +96,20 @@ CREATE TABLE IF NOT EXISTS portfolio (
     target          DOUBLE,
     position_pct    DOUBLE,      -- % of portfolio
     thesis_summary  VARCHAR,
-    status          VARCHAR      -- OPEN | CLOSED
+    status          VARCHAR,     -- OPEN | CLOSED
+    exit_date       DATE,
+    exit_price      DOUBLE
 );
+
+-- Account state for capital tracking
+CREATE TABLE IF NOT EXISTS account (
+    id INTEGER PRIMARY KEY,
+    total_capital DOUBLE,
+    updated_at TIMESTAMP
+);
+
+-- Seed initial capital if not exists
+INSERT INTO account (id, total_capital, updated_at)
+SELECT 1, 1000000.0, current_timestamp
+WHERE NOT EXISTS (SELECT 1 FROM account WHERE id = 1);
+

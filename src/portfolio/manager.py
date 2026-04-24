@@ -6,27 +6,32 @@ class PortfolioManager:
     def __init__(self, db_path):
         self.db_path = db_path
         
-    def open_position(self, symbol, entry_price, quantity, stop_loss, target, position_pct, thesis_summary):
+    def open_position(self, symbol, entry_price, quantity, stop_loss, target, position_pct, thesis_summary, entry_date=None):
         conn = duckdb.connect(self.db_path)
         try:
-            today = datetime.date.today()
+            if entry_date is None:
+                entry_date = datetime.date.today()
             conn.execute("""
                 INSERT OR REPLACE INTO portfolio (symbol, entry_date, entry_price, quantity, stop_loss, target, position_pct, thesis_summary, status)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'OPEN')
-            """, (symbol, today, entry_price, quantity, stop_loss, target, position_pct, thesis_summary))
+            """, (symbol, entry_date, entry_price, quantity, stop_loss, target, position_pct, thesis_summary))
             print(f"Opened position for {symbol}")
         except Exception as e:
             print(f"Error opening position: {e}")
         finally:
             conn.close()
             
-    def close_position(self, symbol):
+    def close_position(self, symbol, exit_price, exit_date=None):
         conn = duckdb.connect(self.db_path)
         try:
+            if exit_date is None:
+                exit_date = datetime.date.today()
             conn.execute("""
-                UPDATE portfolio SET status = 'CLOSED' WHERE symbol = ?
-            """, (symbol,))
-            print(f"Closed position for {symbol}")
+                UPDATE portfolio 
+                SET status = 'CLOSED', exit_price = ?, exit_date = ? 
+                WHERE symbol = ? AND status = 'OPEN'
+            """, (exit_price, exit_date, symbol))
+            print(f"Closed position for {symbol} at {exit_price}")
         except Exception as e:
             print(f"Error closing position: {e}")
         finally:
