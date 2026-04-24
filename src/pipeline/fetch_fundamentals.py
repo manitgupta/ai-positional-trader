@@ -10,17 +10,12 @@ import datetime
 
 load_dotenv()
 
-class FundamentalsFetcher(ABC):
-    @abstractmethod
-    def fetch_fundamentals(self, symbol):
-        pass
-
-class TrendlyneFetcher(FundamentalsFetcher):
+class ScreenerFetcher(FundamentalsFetcher):
     def __init__(self):
-        self.url_format = "https://trendlyne.com/equity/{symbol}/stock-page/"
+        self.url_format = "https://www.screener.in/company/{symbol}/"
         
     def fetch_fundamentals(self, symbol):
-        print(f"Scraping fundamentals for {symbol} from Trendlyne...")
+        print(f"Scraping fundamentals for {symbol} from Screener.in...")
         url = self.url_format.format(symbol=symbol)
         
         headers = {
@@ -30,60 +25,96 @@ class TrendlyneFetcher(FundamentalsFetcher):
         try:
             response = requests.get(url, headers=headers, timeout=10, allow_redirects=True)
             if response.status_code != 200:
-                print(f"Failed to load Trendlyne page for {symbol}. Status: {response.status_code}")
+                print(f"Failed to load Screener page for {symbol}. Status: {response.status_code}")
                 return pd.DataFrame()
                 
             soup = BeautifulSoup(response.content, 'html.parser')
             
-            # Try to extract JSON metrics from data attributes as seen in voyager repo
-            key_metrics_div = soup.find('div', id="stock_key_metrics")
-            perf_params_div = soup.find('div', id="stock_performance_parameters")
+            # 1. Extract from Profit & Loss table
+            pl_section = soup.find('section', id='profit-loss')
+            eps = 0.0
+            eps_growth = 0.0
+            revenue = 0.0
+            rev_growth = 0.0
             
-            def process_metrics(metrics_data):
-                res = {}
-                if isinstance(metrics_data, dict):
-                    res.update(metrics_data)
-                elif isinstance(metrics_data, list):
-                    for item in metrics_data:
-                        if isinstance(item, dict):
-                            res.update(item)
-                return res
-
-            metrics = {}
-            if key_metrics_div and key_metrics_div.has_attr('data-metrics'):
-                metrics.update(process_metrics(json.loads(key_metrics_div['data-metrics'])))
-            if perf_params_div and perf_params_div.has_attr('data-metrics'):
-                metrics.update(process_metrics(json.loads(perf_params_div['data-metrics'])))
-                
-            if metrics:
-                df = pd.DataFrame([{
-                    'symbol': symbol,
-                    'quarter': metrics.get('latest_quarter', 'N/A'),
-                    'eps': float(metrics.get('eps', 0.0)),
-                    'eps_growth_yoy': float(metrics.get('eps_growth_yoy', 0.0)),
-                    'revenue': float(metrics.get('revenue', 0.0)),
-                    'rev_growth_yoy': float(metrics.get('rev_growth_yoy', 0.0)),
-                    'earnings_surprise': float(metrics.get('earnings_surprise', 0.0)),
-                    'roe': float(metrics.get('roe', 0.0)),
-                    'debt_to_equity': float(metrics.get('debt_to_equity', 0.0)),
-                    'promoter_holding': float(metrics.get('promoter_holding', 0.0))
-                }])
-                return df
-                
-            # Fallback: Parse tables if JSON attributes not found
-            print("JSON attributes not found. Parsing HTML tables...")
-            # Implementation for parsing standard HTML tables on Trendlyne could go here if needed
-            
-            return pd.DataFrame()
+            if pl_section:
+                table = pl_section.find('table', class_='data-table')
+                if table:
+                    rows = table.find_all('tr')
+                    for row in rows:
+                        cells = row.find_all('td')
+                        if cells:
+                            row_header = cells[0].get_text().strip()
+                            if 'EPS in Rs' in row_header:
+                                eps_str = cells[-1].get_text().strip()
+                                try:
+                                    eps = float(eps_str.replace(',', ''))
+                                except ValueError:
+                                    pass
+                                if len(cells) >= 3:
+                                    prev_eps_str = cells[-2].get_text().strip()
+                                    try:
+                                        prev_eps = float(prev_eps_str.replace(',', ''))
+                                        if prev_eps != 0:
+                                            eps_growth = ((eps - prev_eps) / prev_eps) * 100
+                                    except ValueError:
+                                        pass
+                                        
+                            elif 'Sales' in row_header or 'Revenue' in row_header:
+                                rev_str = cells[-1].get_text().strip()
+                                try:
+                                    revenue = float(rev_str.replace(',', ''))
+                                except ValueError:
+                                    pass
+                                if len(cells) >= 3:
+                                    prev_rev_str = cells[-2].get_text().strip()
+                                    try:
+                                        prev_rev = float(prev_rev_str.replace(',', ''))
+                                        if prev_rev != 0:
+                                            rev_growth = ((revenue - prev_rev) / prev_rev) * 100
+                                    except ValueError:
+                                        pass
+                                        
+            # 2. Extract Promoter Holding from Shareholding table
+            sh_section = soup.find('section', id='shareholding')
+            promoter_holding = 0.0
+            if sh_section:
+                table = sh_section.find('table', class_='data-table')
+                if table:
+                    rows = table.find_all('tr')
+                    for row in rows:
+                        cells = row.find_all('td')
+                        if cells:
+                            row_header = cells[0].get_text().strip()
+                            if 'Promoters' in row_header:
+                                ph_str = cells[-1].get_text().strip()
+                                try:
+                                    promoter_holding = float(ph_str.replace('%', '').strip())
+                                except ValueError:
+                                    pass
+                                    
+            df = pd.DataFrame([{
+                'symbol': symbol,
+                'quarter': 'TTM',
+                'eps': eps,
+                'eps_growth_yoy': eps_growth,
+                'revenue': revenue,
+                'rev_growth_yoy': rev_growth,
+                'earnings_surprise': 0.0,
+                'roe': 0.0,
+                'debt_to_equity': 0.0,
+                'promoter_holding': promoter_holding
+            }])
+            return df
             
         except Exception as e:
-            print(f"Error scraping from Trendlyne: {e}")
+            print(f"Error scraping from Screener: {e}")
             return pd.DataFrame()
 
 class FundamentalsManager:
     def __init__(self, db_path):
         self.db_path = db_path
-        self.fetcher = TrendlyneFetcher()
+        self.fetcher = ScreenerFetcher()
             
     def update_fundamentals(self, symbol):
         # Check cache: skip if fetched within last 7 days
