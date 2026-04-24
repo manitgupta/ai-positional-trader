@@ -15,6 +15,15 @@ For detailed instructions on how to:
 
 Please refer to the [SETUP.md](file:///Users/manitgupta/experiments/ai-positional-trader/SETUP.md) file.
 
+## The Stock Selection Process
+
+Every night, the bot follows a disciplined multi-step process to identify high-conviction setups:
+
+1. **Technical Hard Filters**: Scans the 2,300+ stock universe for strong Stage 2 uptrends, high Relative Strength (RS Rank), and price above the 200-day moving average.
+2. **Multi-Timeframe Confirmation**: Pulls the last 5 weekly candles for top candidates to ensure the daily setup is supported by a strong weekly trend.
+3. **Fundamental Verification**: Fetches data from Screener.in (EPS growth, Revenue growth, Promoter holding) to ensure the candidate is a healthy company.
+4. **AI Analyst Review**: Passes the 30-day daily history, 5-week history, and fundamentals to **Gemini**. Gemini acts as a Minervini-style analyst, cross-verifying all data to produce a high-conviction thesis with specific entry triggers and stop losses.
+
 ## How to Use the Bot (Trading Strategy)
 
 The bot is designed to be a nightly advisor. It does not execute trades automatically. Here is how you should use its output:
