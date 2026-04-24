@@ -3,7 +3,7 @@ from google import genai
 from google.genai import types
 from dotenv import load_dotenv
 from src.analyst.prompts import SYSTEM_PROMPT
-from config import GEMINI_MODEL, GEMINI_THINKING_BUDGET
+from config import GEMINI_MODEL
 
 load_dotenv()
 
@@ -16,20 +16,33 @@ class GeminiAnalyst:
             raise ValueError("GEMINI_API_KEY environment variable is required.")
             
         print("Initializing Gemini Client...")
-        self.client = genai.Client(api_key=self.api_key)
+        self.client = genai.Client()
             
     def generate_memo(self, context: str) -> str:
-        print(f"Calling Gemini ({self.model_name})...")
-        response = self.client.models.generate_content(
-            model=self.model_name,
-            contents=context,
-            config=types.GenerateContentConfig(
-                system_instruction=SYSTEM_PROMPT,
-                temperature=1.0,
-                thinking_config=types.ThinkingConfig(thinking_budget=GEMINI_THINKING_BUDGET),
-            ),
-        )
-        return response.text
+        import time
+        max_retries = 5
+        retry_delay = 2
+        
+        for attempt in range(max_retries):
+            print(f"Calling Gemini ({self.model_name})... (Attempt {attempt + 1}/{max_retries})")
+            try:
+                response = self.client.models.generate_content(
+                    model=self.model_name,
+                    contents=context,
+                    config=types.GenerateContentConfig(
+                        system_instruction=SYSTEM_PROMPT,
+                        temperature=1.0,
+                    ),
+                )
+                return response.text
+            except Exception as e:
+                print(f"Gemini call failed: {e}")
+                if attempt < max_retries - 1:
+                    print(f"Retrying in {retry_delay}s...")
+                    time.sleep(retry_delay)
+                    retry_delay *= 2
+                else:
+                    raise e
 
 
 if __name__ == "__main__":
