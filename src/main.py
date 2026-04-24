@@ -149,6 +149,9 @@ def run_nightly_pipeline():
     scored_candidates = compute_composite_scores(candidate_data)
     scored_candidates = scored_candidates.sort_values(by='composite_score', ascending=False)
     
+    print("Top candidates after composite scoring:")
+    print(scored_candidates[['symbol', 'composite_score']].head(10))
+    
     # 5. Gemini Analyst
     print("\n--- Phase 4: Gemini Analyst ---")
     context_builder = ContextBuilder(DB_PATH)
