@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 def send_telegram_message(message):
-    """Sends a message to a Telegram chat, splitting it if it exceeds limits."""
+    """Sends a message to a Telegram chat, splitting it by lines if it exceeds limits."""
     bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     chat_id = os.environ.get("TELEGRAM_CHAT_ID")
     
@@ -14,14 +14,17 @@ def send_telegram_message(message):
         print(message)
         return False
         
-    MAX_LENGTH = 4096
+    MAX_LENGTH = 4000 # Leave buffer for safety
     
-    def send_chunk(text):
+    def send_chunk(text, parse_mode="Markdown"):
         url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
         payload = {
             "chat_id": chat_id,
             "text": text
         }
+        if parse_mode:
+            payload["parse_mode"] = parse_mode
+            
         try:
             response = requests.post(url, json=payload)
             return response.status_code == 200
@@ -30,27 +33,41 @@ def send_telegram_message(message):
             return False
 
     if len(message) <= MAX_LENGTH:
-        success = send_chunk(message)
-        if success:
+        if send_chunk(message, "Markdown"):
             print("Telegram message sent successfully.")
             return True
         else:
-            print("Failed to send Telegram message.")
-            return False
-    else:
-        print(f"Message too long ({len(message)} chars). Splitting into chunks...")
-        chunks = [message[i:i+MAX_LENGTH] for i in range(0, len(message), MAX_LENGTH)]
-        all_success = True
-        for i, chunk in enumerate(chunks):
-            print(f"Sending chunk {i+1}/{len(chunks)}...")
-            if not send_chunk(chunk):
-                all_success = False
-                print(f"Failed to send chunk {i+1}")
+            print("Failed with Markdown. Retrying as plain text...")
+            return send_chunk(message, None)
+            
+    print(f"Message too long ({len(message)} chars). Splitting by lines...")
+    lines = message.split('\n')
+    chunks = []
+    current_chunk = ""
+    
+    for line in lines:
+        if len(current_chunk) + len(line) + 1 <= MAX_LENGTH:
+            current_chunk += line + '\n'
+        else:
+            if current_chunk:
+                chunks.append(current_chunk.strip())
+            current_chunk = line + '\n'
+            
+    if current_chunk:
+        chunks.append(current_chunk.strip())
         
-        if all_success:
-            print("All Telegram chunks sent successfully.")
-            return True
-        return False
+    all_success = True
+    for i, chunk in enumerate(chunks):
+        print(f"Sending chunk {i+1}/{len(chunks)}...")
+        if not send_chunk(chunk, "Markdown"):
+            print(f"Markdown failed for chunk {i+1}. Retrying as plain text...")
+            if send_chunk(chunk, None):
+                print(f"Chunk {i+1} sent as plain text.")
+            else:
+                print(f"Failed to send chunk {i+1} even as plain text.")
+                all_success = False
+                
+    return all_success
 
 if __name__ == "__main__":
     test_message = "*Test Message* from Positional Trading Bot.\n\nThis is a test."
