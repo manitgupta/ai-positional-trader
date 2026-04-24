@@ -57,7 +57,7 @@ class PriceFetcher:
             try:
                 import time
                 time.sleep(2) # Prevent rate limiting
-                df = yf.download(tickers_str, start=from_date, end=to_date, progress=False, group_by='column')
+                df = yf.download(tickers_str, start=from_date, end=to_date + datetime.timedelta(days=1), progress=False, group_by='column')
                 
                 if not df.empty:
                     if isinstance(df.columns, pd.MultiIndex):
