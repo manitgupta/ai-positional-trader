@@ -44,6 +44,21 @@ class GeminiAnalyst:
                 else:
                     raise e
 
+    def generate_summary(self, memo: str, prompt: str) -> str:
+        """Generate a concise summary of the memo for Telegram."""
+        print(f"Calling Gemini ({self.model_name}) for summary...")
+        try:
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=f"{prompt}\n\nResearch Memo:\n{memo}",
+                config=types.GenerateContentConfig(
+                    temperature=0.7,
+                ),
+            )
+            return response.text
+        except Exception as e:
+            print(f"Error generating summary: {e}")
+            return "Failed to generate summary."
 
 if __name__ == "__main__":
     analyst = GeminiAnalyst()

@@ -190,9 +190,21 @@ def run_nightly_pipeline():
             elif action == 'TRAIL_STOP':
                 portfolio.update_stop_loss(symbol, dec.get('new_stop'))
 
-    # 7. Notifications
-    print("\n--- Phase 6: Notifications ---")
-    send_telegram_message(memo)
+    # 7. Generate Telegram Summary
+    print("\n--- Phase 6: Generate Telegram Summary ---")
+    summary_prompt = """
+    You are a strict editor. Summarize the research memo above into a concise Telegram message.
+    Focus on:
+    1. The top Buy Setups with their symbols, specific entry triggers, and targets.
+    2. The key Watchlist stocks and what to watch for.
+    Keep it under 4000 characters. Use bold text for emphasis and make it very readable.
+    Do NOT include raw JSON blocks.
+    """
+    summary = analyst.generate_summary(memo, summary_prompt)
+    
+    # 8. Notifications
+    print("\n--- Phase 7: Notifications ---")
+    send_telegram_message(summary)
     
     print("\n🎉 Pipeline run completed.")
 
