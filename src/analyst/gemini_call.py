@@ -4,6 +4,7 @@ from google.genai import types
 from dotenv import load_dotenv
 from src.analyst.prompts import SYSTEM_PROMPT
 from config import GEMINI_MODEL
+from src.analyst.db_tool import execute_read_only_query, search_web
 
 load_dotenv(override=True)
 
@@ -32,7 +33,7 @@ class GeminiAnalyst:
                     config=types.GenerateContentConfig(
                         system_instruction=SYSTEM_PROMPT,
                         temperature=1.0,
-                        tools=[types.Tool(google_search=types.GoogleSearch())],
+                        tools=[execute_read_only_query, search_web],
                     ),
                 )
                 return response.text
