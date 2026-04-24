@@ -32,6 +32,7 @@ class GeminiAnalyst:
                     config=types.GenerateContentConfig(
                         system_instruction=SYSTEM_PROMPT,
                         temperature=1.0,
+                        tools=[types.Tool(google_search=types.GoogleSearch())],
                     ),
                 )
                 return response.text
