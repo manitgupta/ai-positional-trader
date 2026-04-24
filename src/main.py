@@ -111,7 +111,9 @@ def run_nightly_pipeline():
     """).fetchdf()
     
     if not latest_signals_df.empty:
-        latest_signals_df['rs_rank'] = (latest_signals_df['raw_momentum_12m'].rank(pct=True) * 100).astype(int)
+        latest_signals_df = latest_signals_df.dropna(subset=['raw_momentum_12m'])
+        if not latest_signals_df.empty:
+            latest_signals_df['rs_rank'] = (latest_signals_df['raw_momentum_12m'].rank(pct=True) * 100).astype(int)
         
         for index, row in latest_signals_df.iterrows():
             conn.execute("""
@@ -249,6 +251,7 @@ def run_nightly_pipeline():
     
     Structure the message with:
     - A professional header with the date.
+    - A 📊 <b>PORTFOLIO REVIEW</b> section summarizing the status of open positions and any actions needed.
     - A 🚀 <b>BUY SETUPS</b> section with clean, structured details for each top candidate.
     - A 👀 <b>WATCHLIST</b> section with specific triggers.
     """
