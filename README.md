@@ -1,59 +1,19 @@
 # Gemini-Powered Positional Trading Bot
 
-A nightly batch system that behaves like a disciplined equity analyst for the Indian Stock Market (NSE/BSE). It scans the universe after market close, identifies positional trade setups (Minervini/O'Neil style), reviews open positions, and produces a structured research memo with actionable decisions using Gemini 2.5 Pro.
+A nightly batch system that behaves like a disciplined equity analyst for the Indian Stock Market (NSE/BSE). It scans the universe after market close, identifies positional trade setups (Minervini/O'Neil style), reviews open positions, and produces a structured research memo with actionable decisions using Gemini.
 
 ## Project Structure
 
 For detailed technical architecture, data flow pipeline, and folder structure, please see the [ARCHITECTURE.md](file:///Users/manitgupta/experiments/ai-positional-trader/ARCHITECTURE.md) file.
 
-## Setup Instructions
+## Setup & Usage
 
-1.  **Environment**: Ensure you have a Python virtual environment set up and activated.
-2.  **Dependencies**: Install the required packages:
-    ```bash
-    pip install -r requirements.txt
-    ```
-3.  **Initialize Database**: Run the initialization script to create the DuckDB database and tables:
-    ```bash
-    python3 src/pipeline/initialize_db.py
-    ```
-4.  **Load Universe**: Populate the `universe` table with all NSE listed symbols:
-    ```bash
-    python3 src/pipeline/load_universe.py
-    ```
+For detailed instructions on:
+- Setting up the environment and database
+- Configuration via `.env`
+- Running the bot manually or scheduled
 
-## Configuration
-
-Create a `.env` file in the root directory with the following variables:
-
-```env
-# Gemini API
-GEMINI_API_KEY=your_gemini_api_key
-
-# Telegram Notifications (Optional, prints to console if missing)
-TELEGRAM_BOT_TOKEN=your_bot_token
-TELEGRAM_CHAT_ID=your_chat_id
-```
-
-## How to Run
-
-### Test Run / Manual Run
-To run the pipeline manually:
-```bash
-python3 src/main.py
-```
-
-### Running Scheduled (Local)
-To run the scheduler locally via the background daemon:
-```bash
-python3 scheduler.py
-```
-
-### Running Scheduled (GitHub Actions)
-A GitHub Actions workflow is defined in `.github/workflows/nightly-run.yml`.
-- It runs automatically at **16:05 IST (10:35 UTC)** on weekdays.
-- **Database Updates**: Since GitHub Actions runs on ephemeral runners, the workflow automatically commits the updated `data/universe.duckdb` file and pushes it back to the repository's main branch at the end of each run, ensuring data persistence.
-- **Secrets**: Add your `GEMINI_API_KEY`, `TELEGRAM_BOT_TOKEN`, and `TELEGRAM_CHAT_ID` as GitHub Secrets in your repository settings (`Settings -> Secrets and variables -> Actions`).
+Please refer to the [ARCHITECTURE.md](file:///Users/manitgupta/experiments/ai-positional-trader/ARCHITECTURE.md) file.
 
 ## How to Use the Bot (Trading Strategy)
 

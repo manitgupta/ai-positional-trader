@@ -73,3 +73,52 @@ The bot operates in a 7-phase nightly batch execution flow orchestrated by `src/
 ## Persistence
 *   **DuckDB**: All data sits in a highly efficient local DuckDB file at `data/universe.duckdb`.
 *   **Git LFS**: Because the database grows to 60MB+, it is tracked in the repository using Git Large File Storage (LFS).
+
+## Setup Instructions
+
+1.  **Environment**: Ensure you have a Python virtual environment set up and activated.
+2.  **Dependencies**: Install the required packages:
+    ```bash
+    pip install -r requirements.txt
+    ```
+3.  **Initialize Database**: Run the initialization script to create the DuckDB database and tables:
+    ```bash
+    python3 src/pipeline/initialize_db.py
+    ```
+4.  **Load Universe**: Populate the `universe` table with all NSE listed symbols:
+    ```bash
+    python3 src/pipeline/load_universe.py
+    ```
+
+## Configuration
+
+Create a `.env` file in the root directory with the following variables:
+
+```env
+# Gemini API
+GEMINI_API_KEY=your_gemini_api_key
+
+# Telegram Notifications (Optional, prints to console if missing)
+TELEGRAM_BOT_TOKEN=your_bot_token
+TELEGRAM_CHAT_ID=your_chat_id
+```
+
+## How to Run
+
+### Test Run / Manual Run
+To run the pipeline manually:
+```bash
+python3 src/main.py
+```
+
+### Running Scheduled (Local)
+To run the scheduler locally via the background daemon:
+```bash
+python3 scheduler.py
+```
+
+### Running Scheduled (GitHub Actions)
+A GitHub Actions workflow is defined in `.github/workflows/nightly-run.yml`.
+- It runs automatically at **16:05 IST (10:35 UTC)** on weekdays.
+- **Database Updates**: Since GitHub Actions runs on ephemeral runners, the workflow automatically commits the updated `data/universe.duckdb` file and pushes it back to the repository's main branch at the end of each run, ensuring data persistence.
+- **Secrets**: Add your `GEMINI_API_KEY`, `TELEGRAM_BOT_TOKEN`, and `TELEGRAM_CHAT_ID` as GitHub Secrets in your repository settings (`Settings -> Secrets and variables -> Actions`).
