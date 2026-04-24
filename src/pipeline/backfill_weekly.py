@@ -21,47 +21,59 @@ def backfill_weekly():
     symbols = conn.execute("SELECT symbol FROM universe").fetchdf()['symbol'].tolist()
     conn.close()
     
-    print(f"Starting weekly backfill for {len(symbols)} symbols...")
+    print(f"Starting weekly backfill for {len(symbols)} symbols in batches...")
     
     to_date = datetime.date.today()
     from_date = to_date - datetime.timedelta(days=730) # 2 years
     
-    for i, symbol in enumerate(symbols):
-        print(f"[{i+1}/{len(symbols)}] Fetching weekly data for {symbol}...")
+    chunk_size = 100
+    
+    for i in range(0, len(symbols), chunk_size):
+        chunk = symbols[i:i+chunk_size]
+        tickers = [f"{s}.NS" for s in chunk]
+        tickers_str = " ".join(tickers)
         
+        print(f"Fetching batch {i // chunk_size + 1} ({len(chunk)} tickers)...")
         try:
-            ticker = symbol + ".NS"
-            df = yf.download(ticker, start=from_date, end=to_date, interval="1wk", progress=False)
+            time.sleep(2) # Prevent rate limiting
+            df = yf.download(tickers_str, start=from_date, end=to_date, interval="1wk", progress=False, group_by='column')
             
             if not df.empty:
-                df = df.reset_index()
-                df['symbol'] = symbol
+                if isinstance(df.columns, pd.MultiIndex):
+                    df = df.stack(level=1).reset_index()
+                    df.columns = [col.lower() for col in df.columns]
+                    if 'level_1' in df.columns:
+                        df = df.rename(columns={'level_1': 'symbol'})
+                    elif 'ticker' in df.columns:
+                        df = df.rename(columns={'ticker': 'symbol'})
+                else:
+                    df = df.reset_index()
+                    df['symbol'] = chunk[0]
+                    df.columns = [col.lower() for col in df.columns]
+                    
+                df['symbol'] = df['symbol'].astype(str).str.replace('.NS', '', regex=False)
                 
-                # Standardize column names
-                df = df.rename(columns={'Date': 'date', 'Open': 'open', 'High': 'high', 'Low': 'low', 'Close': 'close', 'Volume': 'volume'})
-                
-                # Extract just the date part
+                if 'date' not in df.columns and 'datetime' in df.columns:
+                    df['date'] = df['datetime']
+                    
                 df['date'] = pd.to_datetime(df['date']).dt.date
                 
-                result_df = df[['symbol', 'date', 'open', 'high', 'low', 'close', 'volume']]
+                df = df[['symbol', 'date', 'open', 'high', 'low', 'close', 'volume']]
+                df = df.dropna(subset=['open', 'high', 'low', 'close'])
                 
                 conn = duckdb.connect(DB_PATH)
-                conn.register('df_view', result_df)
+                conn.register('df_view', df)
                 conn.execute("""
                     INSERT OR IGNORE INTO weekly_prices 
                     SELECT symbol, date, open, high, low, close, volume 
                     FROM df_view
                 """)
                 conn.close()
-                print(f"Saved {len(result_df)} weekly rows for {symbol}")
-            else:
-                print(f"No data for {symbol}")
+                print(f"Saved {len(df)} weekly rows for batch {i // chunk_size + 1}")
                 
         except Exception as e:
-            print(f"Error fetching {symbol}: {e}")
+            print(f"Error fetching batch starting at {i}: {e}")
             
-        time.sleep(1) # Throttle to avoid rate limits
-        
     print("Backfill completed!")
 
 if __name__ == "__main__":
