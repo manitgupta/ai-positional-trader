@@ -10,7 +10,7 @@ import datetime
 
 load_dotenv()
 
-class ScreenerFetcher(FundamentalsFetcher):
+class ScreenerFetcher:
     def __init__(self):
         self.url_format = "https://www.screener.in/company/{symbol}/"
         
