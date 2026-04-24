@@ -113,6 +113,9 @@ Leading Sectors: IT, Auto, Capital Goods.
 ## Your research notes — last 45 days
 {prior_notes.to_string() if not prior_notes.empty else "No prior research notes."}
 
+## Today's candidates snapshot (with fundamentals)
+{candidates_df.to_string(index=False) if not candidates_df.empty else "No candidates passed filters today."}
+
 ## Today's screener candidates (with last 30 days history)
 {candidates_text}
 """
