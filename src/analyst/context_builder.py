@@ -67,6 +67,30 @@ Leading Sectors: IT, Auto, Capital Goods.
         
         today = datetime.date.today().strftime("%Y-%m-%d")
         
+        candidates_text = ""
+        if not candidates_df.empty:
+            conn = duckdb.connect(self.db_path)
+            try:
+                for symbol in candidates_df['symbol'].tolist():
+                    query = f"""
+                        SELECT s.date, p.close, p.volume, s.rsi_14, s.adx_14, s.volume_ratio_20d
+                        FROM signals s
+                        JOIN prices p ON s.symbol = p.symbol AND s.date = p.date
+                        WHERE s.symbol = '{symbol}'
+                        ORDER BY s.date DESC
+                        LIMIT 5
+                    """
+                    history = conn.execute(query).fetchdf()
+                    candidates_text += f"\n--- {symbol} (Last 5 Days) ---\n"
+                    candidates_text += history.to_string(index=False) + "\n"
+            except Exception as e:
+                print(f"Error fetching history for candidates: {e}")
+                candidates_text += f"\nError fetching history for {symbol}\n"
+            finally:
+                conn.close()
+        else:
+            candidates_text = "No candidates passed filters today."
+        
         context = f"""
 ## Macro backdrop ({today})
 {macro}
@@ -77,8 +101,8 @@ Leading Sectors: IT, Auto, Capital Goods.
 ## Your research notes — last 45 days
 {prior_notes.to_string() if not prior_notes.empty else "No prior research notes."}
 
-## Today's screener candidates (top {len(candidates_df)})
-{candidates_df.to_string() if not candidates_df.empty else "No candidates passed filters today."}
+## Today's screener candidates (with last 5 days history)
+{candidates_text}
 """
         return context
 

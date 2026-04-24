@@ -109,10 +109,29 @@ def run_nightly_pipeline():
         QUALIFY ROW_NUMBER() OVER(PARTITION BY s.symbol ORDER BY s.date DESC) = 1
     """
     all_data = conn.execute(query).fetchdf()
+    portfolio_symbols = []
+    try:
+        portfolio_symbols = conn.execute("SELECT symbol FROM portfolio WHERE status = 'OPEN'").fetchdf()['symbol'].tolist()
+    except Exception:
+        pass
+        
+    journal_symbols = []
+    try:
+        journal_symbols = conn.execute("""
+            SELECT symbol FROM (
+                SELECT symbol, status, date,
+                ROW_NUMBER() OVER(PARTITION BY symbol ORDER BY date DESC) as rn
+                FROM research_journal
+            ) WHERE rn = 1 AND status IN ('watchlist', 'watchlist_entry', 'WATCH_FOR_ENTRY', 'buy_setup')
+        """).fetchdf()['symbol'].tolist()
+    except Exception:
+        pass
+        
+    forced_symbols = list(set(portfolio_symbols + journal_symbols))
     conn.close()
     
     all_data['passes'] = all_data.apply(passes_hard_filters, axis=1)
-    candidates = all_data[all_data['passes']].copy()
+    candidates = all_data[all_data['passes'] | all_data['symbol'].isin(forced_symbols)].copy()
     
     print(f"Found {len(candidates)} candidates passing technical filters.")
     
