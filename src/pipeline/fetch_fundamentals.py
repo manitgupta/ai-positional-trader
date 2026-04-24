@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup
 import json
 from abc import ABC, abstractmethod
 from dotenv import load_dotenv
+import datetime
 
 load_dotenv()
 
@@ -85,6 +86,25 @@ class FundamentalsManager:
         self.fetcher = TrendlyneFetcher()
             
     def update_fundamentals(self, symbol):
+        # Check cache: skip if fetched within last 7 days
+        conn = duckdb.connect(self.db_path)
+        try:
+            res = conn.execute("SELECT MAX(fetch_date) FROM fundamentals WHERE symbol = ?", (symbol,)).fetchone()
+            if res and res[0]:
+                last_date = res[0]
+                if isinstance(last_date, str):
+                    last_date = datetime.datetime.strptime(last_date, "%Y-%m-%d").date()
+                elif isinstance(last_date, datetime.datetime):
+                    last_date = last_date.date()
+                
+                if (datetime.date.today() - last_date).days < 7:
+                    print(f"Fundamentals for {symbol} are up to date (last fetched {last_date}). Skipping.")
+                    return
+        except Exception as e:
+            print(f"Error checking cache for {symbol}: {e}")
+        finally:
+            conn.close()
+
         df = self.fetcher.fetch_fundamentals(symbol)
         if not df.empty:
             self.save_to_db(df)
@@ -92,11 +112,14 @@ class FundamentalsManager:
     def save_to_db(self, df):
         conn = duckdb.connect(self.db_path)
         try:
+            # Add current date as fetch_date
+            df['fetch_date'] = datetime.date.today()
+            
             conn.register('df_view', df)
             conn.execute("""
                 INSERT OR REPLACE INTO fundamentals 
                 SELECT symbol, quarter, eps, eps_growth_yoy, revenue, rev_growth_yoy, 
-                       earnings_surprise, roe, debt_to_equity, promoter_holding 
+                       earnings_surprise, roe, debt_to_equity, promoter_holding, fetch_date
                 FROM df_view
             """)
             print(f"Saved fundamentals for {df['symbol'].iloc[0]} to DB.")

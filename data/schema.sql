@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS fundamentals (
     roe             DOUBLE,
     debt_to_equity  DOUBLE,
     promoter_holding DOUBLE,
+    fetch_date      DATE,        -- date when fundamentals were last scraped
     PRIMARY KEY (symbol, quarter)
 );
 
