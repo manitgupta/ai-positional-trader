@@ -2,7 +2,9 @@
 CREATE TABLE IF NOT EXISTS universe (
     symbol VARCHAR PRIMARY KEY,
     company_name VARCHAR,
-    series VARCHAR
+    series VARCHAR,
+    sector VARCHAR,
+    industry VARCHAR
 );
 
 -- Core price table (partitioned by date)

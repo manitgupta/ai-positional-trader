@@ -14,6 +14,9 @@ from src.analyst.tools import (
     get_open_position_detail,
     get_position_history,
     execute_read_only_query,
+    get_macro_snapshot,
+    get_breadth,
+    get_earnings_calendar,
 )
 from src.analyst.db_tool import search_web
 from config import GEMINI_MODEL
@@ -30,6 +33,9 @@ ANALYST_TOOLS = [
     get_position_history,
     execute_read_only_query,
     search_web,
+    get_macro_snapshot,
+    get_breadth,
+    get_earnings_calendar,
 ]
 
 

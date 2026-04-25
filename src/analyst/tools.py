@@ -1,7 +1,173 @@
 """Tool functions registered with Gemini. All return formatted strings."""
+import datetime
 import duckdb
 import pandas as pd
+import yfinance as yf
 from config import DB_PATH
+
+def get_macro_snapshot() -> str:
+    """
+    Fetches a snapshot of key macro indicators:
+    - Nifty 50 (^NSEI) position vs 50/200 DMA
+    - India VIX (^INDIAVIX)
+    - USD/INR (USDINR=X)
+    - Brent Crude (BZ=F)
+    - US 10Y (^TNX)
+    Use to assess market environment risk.
+    """
+    try:
+        # Nifty 50
+        nifty = yf.Ticker("^NSEI").history(period="1y")
+        if not nifty.empty:
+            latest_close = nifty['Close'].iloc[-1]
+            sma_50 = nifty['Close'].rolling(50).mean().iloc[-1]
+            sma_200 = nifty['Close'].rolling(200).mean().iloc[-1]
+            prev_close = nifty['Close'].iloc[-2]
+            pct_change = (latest_close - prev_close) / prev_close * 100
+            
+            nifty_text = (
+                f"Nifty 50: {latest_close:,.2f} ({pct_change:+.2f}%) | "
+                f"vs 50MA: {((latest_close/sma_50)-1)*100:+.2f}% | "
+                f"vs 200MA: {((latest_close/sma_200)-1)*100:+.2f}%"
+            )
+        else:
+            nifty_text = "Nifty 50: No data"
+
+        # India VIX
+        vix = yf.Ticker("^INDIAVIX").history(period="5d")
+        vix_val = vix['Close'].iloc[-1] if not vix.empty else "N/A"
+        
+        # USD/INR
+        usdinr = yf.Ticker("USDINR=X").history(period="5d")
+        usdinr_val = usdinr['Close'].iloc[-1] if not usdinr.empty else "N/A"
+        
+        # Brent Crude
+        brent = yf.Ticker("BZ=F").history(period="5d")
+        brent_val = brent['Close'].iloc[-1] if not brent.empty else "N/A"
+        
+        # US 10Y
+        us10y = yf.Ticker("^TNX").history(period="5d")
+        us10y_val = us10y['Close'].iloc[-1] if not us10y.empty else "N/A"
+        
+        vix_str = f"{vix_val:.2f}" if isinstance(vix_val, float) else str(vix_val)
+        usdinr_str = f"{usdinr_val:.2f}" if isinstance(usdinr_val, float) else str(usdinr_val)
+        brent_str = f"{brent_val:.2f}" if isinstance(brent_val, float) else str(brent_val)
+        us10y_str = f"{us10y_val:.2f}" if isinstance(us10y_val, float) else str(us10y_val)
+        
+        return (
+            f"--- Macro Snapshot ---\n"
+            f"{nifty_text}\n"
+            f"India VIX: {vix_str}\n"
+            f"USD/INR: {usdinr_str}\n"
+            f"Brent Crude: {brent_str}\n"
+            f"US 10Y Treasury: {us10y_str}%"
+        )
+    except Exception as e:
+        return f"Error fetching macro snapshot: {e}"
+
+
+def get_breadth() -> str:
+    """
+    Computes market breadth metrics from stored signals and prices:
+    - % of universe above 50 and 200 DMA
+    - New 52-week highs
+    - Advance/Decline ratio
+    Use to judge if the market environment supports breakouts.
+    """
+    try:
+        with duckdb.connect(DB_PATH, read_only=True) as c:
+            # Get latest date
+            latest_date = c.execute("SELECT max(date) FROM signals").fetchone()[0]
+            if not latest_date:
+                return "No signals data available for breadth computation."
+                
+            # Get previous date for A/D
+            prev_date = c.execute("SELECT max(date) FROM signals WHERE date < ?", (latest_date,)).fetchone()[0]
+            
+            # Query for MAs and Highs
+            breadth_df = c.execute("""
+                SELECT 
+                    count(*) as total,
+                    count(CASE WHEN s.above_200ma THEN 1 END) as above_200,
+                    count(CASE WHEN p.close > s.sma_50 THEN 1 END) as above_50,
+                    count(CASE WHEN s.pct_from_52w_high >= 0 THEN 1 END) as new_highs
+                FROM signals s
+                JOIN prices p ON s.symbol = p.symbol AND s.date = p.date
+                WHERE s.date = ?
+            """, (latest_date,)).fetchdf()
+            
+            # Query for Advance/Decline
+            ad_df = c.execute("""
+                SELECT 
+                    count(CASE WHEN cur.close > prev.close THEN 1 END) as advances,
+                    count(CASE WHEN cur.close < prev.close THEN 1 END) as declines
+                FROM prices cur
+                JOIN prices prev ON cur.symbol = prev.symbol AND prev.date = ?
+                WHERE cur.date = ?
+            """, (prev_date, latest_date)).fetchdf()
+            
+            total = breadth_df['total'].iloc[0]
+            above_200 = breadth_df['above_200'].iloc[0]
+            above_50 = breadth_df['above_50'].iloc[0]
+            near_highs = breadth_df['new_highs'].iloc[0]
+            
+            advances = ad_df['advances'].iloc[0]
+            declines = ad_df['declines'].iloc[0]
+            
+            pct_above_200 = (above_200 / total * 100) if total > 0 else 0
+            pct_above_50 = (above_50 / total * 100) if total > 0 else 0
+            
+            ratio_str = f"{advances/declines:.2f}" if declines > 0 else "N/A"
+            
+            return (
+                f"--- Market Breadth ({latest_date}) ---\n"
+                f"Total Universe: {total}\n"
+                f"Above 200 DMA: {above_200} ({pct_above_200:.1f}%)\n"
+                f"Above 50 DMA: {above_50} ({pct_above_50:.1f}%)\n"
+                f"New 52W Highs: {near_highs}\n"
+                f"Advance/Decline: {advances}/{declines} (Ratio: {ratio_str})"
+            )
+    except Exception as e:
+        return f"Error computing breadth: {e}"
+
+
+def get_earnings_calendar(symbol: str, days_ahead: int = 14) -> str:
+    """
+    Checks if `symbol` has an earnings date scheduled within the next `days_ahead` days.
+    Use to avoid buying right before earnings.
+    
+    Args:
+        symbol: NSE ticker without suffix.
+        days_ahead: lookahead window in days (default 14).
+    """
+    try:
+        ticker = yf.Ticker(f"{symbol}.NS")
+        calendar = ticker.calendar
+        
+        if not calendar:
+            return f"No earnings calendar data available for {symbol}."
+            
+        earnings_date = calendar.get('Earnings Date')
+        if not earnings_date:
+            return f"No earnings date scheduled for {symbol}."
+            
+        if isinstance(earnings_date, list) and len(earnings_date) > 0:
+            edate = earnings_date[0]
+        elif isinstance(earnings_date, datetime.date):
+            edate = earnings_date
+        else:
+            return f"Unexpected earnings date format for {symbol}."
+            
+        today = datetime.date.today()
+        diff = (edate - today).days
+        
+        if 0 <= diff <= days_ahead:
+            return f"WARNING: {symbol} earnings scheduled in {diff} days on {edate}."
+        else:
+            return f"{symbol} earnings on {edate} (in {diff} days)."
+            
+    except Exception as e:
+        return f"Error checking earnings calendar for {symbol}: {e}"
 
 
 def _fmt(df: pd.DataFrame, empty: str = "No rows.") -> str:
@@ -20,9 +186,10 @@ def get_price_history(symbol: str, days: int = 30) -> str:
 
     Args:
         symbol: NSE ticker without suffix, e.g. "RELIANCE".
-        days:   number of recent sessions (default 30, capped at 400).
+        days:   number of recent sessions (default 30, capped at 1200).
     """
-    days = max(1, min(int(days), 400))
+    print(f"🔧 [TOOL CALL] get_price_history for {symbol} (days={days})")
+    days = max(1, min(int(days), 1200))
     with duckdb.connect(DB_PATH, read_only=True) as c:
         df = c.execute(f"""
             SELECT s.date, p.close, p.volume,
@@ -45,9 +212,10 @@ def get_weekly_history(symbol: str, weeks: int = 10) -> str:
 
     Args:
         symbol: NSE ticker without suffix.
-        weeks:  number of recent weeks (default 10, capped at 104).
+        weeks:  number of recent weeks (default 10, capped at 550).
     """
-    weeks = max(1, min(int(weeks), 104))
+    print(f"🔧 [TOOL CALL] get_weekly_history for {symbol} (weeks={weeks})")
+    weeks = max(1, min(int(weeks), 550))
     with duckdb.connect(DB_PATH, read_only=True) as c:
         df = c.execute(f"""
             SELECT date, open, high, low, close, volume

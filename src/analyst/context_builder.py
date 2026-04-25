@@ -2,11 +2,7 @@
 import datetime
 import duckdb
 import pandas as pd
-
-MACRO_STUB = """Nifty 50: Holding above 200 MA, in Stage 2 uptrend.
-VIX: 14.5 (Normal).
-FII Flows: Net buyers last 5 days.
-Leading Sectors: IT, Auto, Capital Goods."""
+from src.analyst.tools import get_macro_snapshot
 
 
 class ContextBuilder:
@@ -66,18 +62,14 @@ class ContextBuilder:
         if candidates_df is None or candidates_df.empty:
             cand_text = "(no candidates passed hard filters today)"
         else:
-            wanted = [
-                "symbol", "close", "rs_rank", "adx_14", "volume_ratio_20d",
-                "pct_from_52w_high", "eps_growth_yoy", "rev_growth_yoy",
-                "promoter_holding", "composite_score",
-            ]
+            wanted = ["symbol"]
             cols = [c for c in wanted if c in candidates_df.columns]
             cand_text = candidates_df[cols].to_string(index=False)
 
         return f"""Today: {today}
 
 ## Macro
-{MACRO_STUB}
+{get_macro_snapshot()}
 
 ## Capital state
 {self._capital()}
