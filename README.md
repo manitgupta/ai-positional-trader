@@ -39,13 +39,13 @@ The top **30 candidates** from this ranking are passed to the AI Analyst.
 ### Phase 3: Data Enrichment
 - Fetches fresh **Quarterly Fundamentals** and **News** from Screener.in for the top 30 candidates only, saving time and avoiding rate limits.
 
-### Phase 4: AI Analyst (Gemini Tool-Calling)
-- The bot initializes a **Gemini Chat** session with a highly detailed system prompt based on Minervini SEPA principles.
-- Gemini receives a minimal "kernel" of context (candidates list, open positions, macro snapshot).
-- **Autonomous Research**: Gemini uses tools to fetch detailed daily charts, weekly charts, quarterly results, and news *on demand* for the candidates it finds promising.
+### Phase 4: AI Analyst (LangGraph Flow)
+- The bot uses a **LangGraph** workflow to analyze candidates in parallel.
+- **Candidate Evaluators**: Each candidate is evaluated by a dedicated Gemini call using tools to fetch detailed daily charts, weekly charts, quarterly results, and news *on demand*.
+- **Synthesizer Agent**: Combines the individual evaluations into a single nightly research memo.
 - **Output**: Produces a nightly research memo in three sections:
   * **SECTION 1: PORTFOLIO REVIEW**: Reviews open positions and manages risk.
-  * **SECTION 2: NEW OPPORTUNITIES**: Full investment thesis for top setups (Conviction >= 7).
+  * **SECTION 2: NEW OPPORTUNITIES**: Full investment thesis for top setups (Conviction >= 7) with detailed evidence.
   * **SECTION 3: WATCHLIST**: Stocks to track for specific triggers.
 
 ### Code 33 Earnings Acceleration

@@ -346,7 +346,7 @@ def run_nightly_pipeline():
     Structure the message with:
     - A professional header with the date {today}.
     - A 📊 <b>PORTFOLIO REVIEW</b> section summarizing the status of open positions and any actions needed.
-    - A 🚀 <b>BUY SETUPS</b> section with clean, structured details for each top candidate.
+    - A 🚀 <b>BUY SETUPS</b> section with clean, structured details and detailed evidence of why it passed for each top candidate.
     - A 👀 <b>WATCHLIST</b> section with specific triggers.
     """
     summary = GeminiAnalyst().generate_summary(memo, summary_prompt)

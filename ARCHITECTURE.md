@@ -25,9 +25,11 @@ trading-bot/
     │   ├── scorer.py          # Composite scoring
     │   └── test_screener.py   # Screener test script
     ├── analyst/
-    │   ├── prompts.py         # System prompt for Gemini
+    │   ├── prompts.py         # Legacy system prompt for Gemini
+    │   ├── prompts_v2.py      # New prompts for LangGraph flow
     │   ├── context_builder.py # Gemini context assembler
     │   ├── gemini_call.py     # API caller (google-genai)
+    │   ├── graph.py           # LangGraph workflow definition
     │   └── parser.py          # JSON extractor from memo
     ├── portfolio/
     │   ├── journal.py         # Research journal manager
@@ -56,10 +58,10 @@ The bot operates in a 7-phase nightly batch execution flow orchestrated by `src/
 ### 4. Screener (Composite Scoring)
 *   Ranks the final candidates using a composite score combining both technical momentum and fundamental metrics.
 
-### 5. Gemini Analyst (Leg 1: Full Memo)
-*   Passes the top candidates and their full context to **Gemini 2.5 Flash**.
-*   Gemini acts as a SEPA analyst to generate full written research theses, risk factors, entry triggers, and stop losses.
-*   The output includes structured JSON blocks.
+### 5. Gemini Analyst (LangGraph Flow)
+*   Candidates are analyzed in parallel using a **LangGraph** workflow.
+*   **Candidate Evaluators**: One Gemini call per candidate to perform detailed technical and fundamental analysis using tools.
+*   **Synthesizer Agent**: Combines the individual evaluations into the final research memo with structured JSON blocks.
 
 ### 6. Journal + Memory
 *   Extracts the JSON decisions from the Gemini memo and commits them to the persistent local DuckDB store (`research_journal` and `portfolio` tables).
