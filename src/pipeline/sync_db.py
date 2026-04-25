@@ -22,8 +22,8 @@ def get_md_connection():
     if not md_token:
         print("Error: MOTHERDUCK_TOKEN not found in environment.")
         return None
-    # Connect to MotherDuck
-    return duckdb.connect(f"md:{MD_DB_NAME}?token={md_token}")
+    # Connect to MotherDuck (default)
+    return duckdb.connect(f"md:?token={md_token}")
 
 def push_to_motherduck():
     if not os.path.exists(LOCAL_DB_PATH):
@@ -36,6 +36,9 @@ def push_to_motherduck():
         
     print(f"Pushing data from {LOCAL_DB_PATH} to MotherDuck...")
     try:
+        # Create database if not exists in MotherDuck
+        conn.execute(f"CREATE DATABASE IF NOT EXISTS {MD_DB_NAME}")
+        
         # Attach local DB
         conn.execute(f"ATTACH '{LOCAL_DB_PATH}' AS local_db (TYPE DUCKDB)")
         
