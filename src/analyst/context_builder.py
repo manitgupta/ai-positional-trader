@@ -44,19 +44,26 @@ class ContextBuilder:
         except Exception as e:
             return f"Error fetching positions: {e}"
 
-    def _journal_symbols(self) -> str:
+    def _journal_symbols(self, target_symbol: str = None) -> str:
         try:
             with duckdb.connect(self.db_path, read_only=True) as c:
-                syms = c.execute("""
-                    SELECT DISTINCT symbol FROM research_journal
-                    WHERE date > current_date - INTERVAL 45 DAY
-                    ORDER BY symbol
-                """).fetchdf()["symbol"].tolist()
-            return ", ".join(syms) if syms else "(none)"
+                if target_symbol:
+                    res = c.execute("""
+                        SELECT DISTINCT symbol FROM research_journal
+                        WHERE symbol = ? AND date > current_date - INTERVAL 45 DAY
+                    """, (target_symbol,)).fetchone()
+                    return target_symbol if res else "(none)"
+                else:
+                    syms = c.execute("""
+                        SELECT DISTINCT symbol FROM research_journal
+                        WHERE date > current_date - INTERVAL 45 DAY
+                        ORDER BY symbol
+                    """).fetchdf()["symbol"].tolist()
+                    return ", ".join(syms) if syms else "(none)"
         except Exception:
             return "(none)"
 
-    def build_context(self, candidates_df: pd.DataFrame) -> str:
+    def build_context(self, candidates_df: pd.DataFrame, target_symbol: str = None) -> str:
         today = datetime.date.today().strftime("%Y-%m-%d")
 
         if candidates_df is None or candidates_df.empty:
@@ -79,7 +86,7 @@ class ContextBuilder:
 Use get_open_position_detail() and get_position_history() to drill into any position.
 
 ## Symbols tracked in research notes (last 45 days)
-{self._journal_symbols()}
+{self._journal_symbols(target_symbol)}
 Use get_research_notes(symbol) to pull full note detail for any of these.
 
 ## Today's screener candidates (ranked by composite score, top-line metrics only)

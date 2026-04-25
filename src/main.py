@@ -288,11 +288,8 @@ def run_nightly_pipeline():
     
     # 5. Gemini Analyst
     print("\n--- Phase 4: Gemini Analyst ---")
-    context_builder = ContextBuilder(DB_PATH)
-    context = context_builder.build_context(scored_candidates.head(30))
-    
     print(f"Running LangGraph flow for {len(candidate_symbols)} candidates...")
-    graph_result = analyst_graph.invoke({"candidates": candidate_symbols, "context": context})
+    graph_result = analyst_graph.invoke({"candidates": candidate_symbols, "candidates_df": scored_candidates.head(30)})
     memo = graph_result.get("final_memo", "")
     
     print("\n--- Memo Generated ---")

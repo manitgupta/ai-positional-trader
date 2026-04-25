@@ -445,30 +445,3 @@ def get_position_history(symbol: str) -> str:
     )
 
 
-def execute_read_only_query(query: str) -> str:
-    print(f"🔧 [TOOL CALL] execute_read_only_query: {query[:50]}...")
-    """
-    Escape hatch: execute a raw SELECT on the DuckDB database.
-    Only SELECT and WITH...SELECT statements are permitted.
-    Prefer the dedicated tools above; use this for aggregations, peer
-    comparisons, or custom joins they don't cover.
-    The full schema is documented in the system prompt.
-
-    Args:
-        query: A SQL SELECT statement.
-    """
-    q = query.strip()
-    upper = q.upper()
-    if not (upper.startswith("SELECT") or upper.startswith("WITH")):
-        return "Error: only SELECT / WITH...SELECT allowed."
-    forbidden = ("INSERT", "UPDATE", "DELETE", "DROP", "ALTER",
-                 "CREATE", "REPLACE", "TRUNCATE")
-    padded = f" {upper} "
-    if any(f" {k} " in padded for k in forbidden):
-        return "Error: write/DDL keyword detected. Query rejected."
-    try:
-        with duckdb.connect(DB_PATH) as c:
-            df = c.execute(q).fetchdf()
-        return _fmt(df)
-    except Exception as e:
-        return f"Error executing query: {e}"

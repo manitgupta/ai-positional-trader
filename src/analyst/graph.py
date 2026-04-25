@@ -12,14 +12,16 @@ from dotenv import load_dotenv
 from src.analyst.prompts_v2 import CANDIDATE_EVALUATOR_PROMPT, SYNTHESIZER_PROMPT
 from src.analyst.gemini_call import ANALYST_TOOLS
 from src.analyst.parser import extract_json_blocks
-from config import GEMINI_MODEL
+from src.analyst.context_builder import ContextBuilder
+from config import GEMINI_MODEL, DB_PATH
+import pandas as pd
 
 load_dotenv(override=True)
 
 # 1. Define State
 class OverallState(TypedDict):
     candidates: List[str]
-    context: str
+    candidates_df: pd.DataFrame
     evaluations: Annotated[List[Dict[str, Any]], operator.add]
     final_memo: str
 
@@ -118,7 +120,11 @@ def synthesize_memo(state: OverallState):
 
 def map_candidates(state: OverallState):
     # This is the fan-out logic
-    return [Send("evaluate_candidate", {"candidate": c, "context": state["context"]}) for c in state["candidates"]]
+    context_builder = ContextBuilder(DB_PATH)
+    return [Send("evaluate_candidate", {
+        "candidate": c, 
+        "context": context_builder.build_context(state["candidates_df"], target_symbol=c)
+    }) for c in state["candidates"]]
 
 workflow = StateGraph(OverallState)
 
