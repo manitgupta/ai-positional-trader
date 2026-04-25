@@ -228,17 +228,21 @@ def run_nightly_pipeline():
             
             journal.add_entry(symbol, thesis, conviction, action, dec.get('entry_trigger'))
             
-            if action == 'ENTER' or action == 'WATCH_FOR_ENTRY':
-                portfolio.open_position(symbol, dec.get('entry_zone', [0])[0], 0, dec.get('stop_loss'), dec.get('target'), dec.get('position_size_pct'), thesis)
-            elif action == 'EXIT':
+            # Positions are opened manually by the user. Auto-open disabled.
+            # if action == 'ENTER' or action == 'WATCH_FOR_ENTRY':
+            #     portfolio.open_position(symbol, dec.get('entry_zone', [0])[0], 0, dec.get('stop_loss'), dec.get('target'), dec.get('position_size_pct'), thesis)
+            if action == 'EXIT':
                 portfolio.close_position(symbol)
             elif action == 'TRAIL_STOP':
                 portfolio.update_stop_loss(symbol, dec.get('new_stop'))
 
     # 7. Generate Telegram Summary
     print("\n--- Phase 6: Generate Telegram Summary ---")
-    summary_prompt = """
+    today = datetime.date.today().strftime("%B %d, %Y")
+    summary_prompt = f"""
     You are a professional equity research editor. Summarize the research memo above into a visually stunning, highly readable Telegram message using HTML tags.
+    
+    Current Date: {today}
     
     Follow these styling rules to make it look rich and premium:
     1. Use Emojis extensively to add color and structure (e.g., 🚀 for Buy Setups, 👀 for Watchlist, 🎯 for Targets, 🛑 for Stop Loss, 📈 for RS Rank).
@@ -250,7 +254,7 @@ def run_nightly_pipeline():
     Telegram supports only these tags: <b>, <i>, <u>, <s>, <a>, <code>, <pre>. Do NOT use any other tags like <p>, <h1>, <ul> etc.
     
     Structure the message with:
-    - A professional header with the date.
+    - A professional header with the date {today}.
     - A 📊 <b>PORTFOLIO REVIEW</b> section summarizing the status of open positions and any actions needed.
     - A 🚀 <b>BUY SETUPS</b> section with clean, structured details for each top candidate.
     - A 👀 <b>WATCHLIST</b> section with specific triggers.
