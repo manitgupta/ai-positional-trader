@@ -17,39 +17,64 @@ Please refer to the [SETUP.md](file:///Users/manitgupta/experiments/ai-positiona
 
 ## The Stock Selection Process (Methodology)
 
-Every night, the bot follows a disciplined multi-phase process to identify high-conviction setups, moving from brute-force data filtering to deep AI analysis.
+Every night, the bot follows a disciplined multi-phase process to identify high-conviction setups, moving from hard data filtering to a sophisticated multi-agent AI analysis.
 
 ### Phase 1: Data Foundation
 - **Universe**: The bot scans a universe of ~2,300 common stocks (Series 'EQ').
 - **Daily Prices**: Fetches daily OHLCV data to compute technical indicators.
 - **Weekly Prices**: Fetches weekly data to confirm long-term Stage-2 uptrends.
 
-### Phase 2: Screener (SQL Filters & Ranking)
-Instead of rigid hard filters that might miss early-stage setups (like cup-and-handle bases or power plays), the bot uses loose "data-hygiene" gates followed by a composite scoring system to shortlist the best names:
-1. **Liquidity Gate**: Ensures stock is tradable (Price >= ₹50, 50-day average turnover >= ₹10 crore, Series='EQ').
-2. **Trend Liveness Gate**: Catches emergent Stage-2 names (Price within 50% of 52-w high OR making a higher high vs 3 months ago OR 50-DMA > 200-DMA).
-3. **Composite Scoring**: Surviving candidates (~800 names) are ranked by a score computed in DuckDB SQL and Pandas:
-   * **Weighted RS (35%)**: IBD-style weighted returns (40% to 3m, 20% each to 6m, 9m, 12m).
-   * **Proximity to High (25%)**: Favors stocks trading near 52-week highs.
-   * **Base Tightness (25%)**: Favors low-volatility consolidations (inverse of ATR/Close).
-   * **Sector RS (15%)**: Favors stocks in leading sectors.
+### Phase 2: Hard Filters & Ranking
 
-The top **30 candidates** from this ranking are passed to the AI Analyst.
+To narrow down the massive universe to actionable candidates, the bot applies strict **Hard Filters** in DuckDB SQL, followed by a **Composite Scoring** system:
+
+#### Hard Filters Criteria:
+1. **Liquidity Filter**: Ensures the stock is tradable and liquid.
+   - `Series = 'EQ'` (Common Equity only)
+   - `Price >= ₹50`
+   - `50-Day Average Turnover >= ₹10 Crore`
+2. **Trend Liveness Filter**: Catches stocks showing signs of life or active Stage-2 trends.
+   - `Price within 50% of 52-Week High` OR
+   - `50-DMA > 200-DMA` OR
+   - `Current Price > Price 3 Months Ago`
+
+Stocks passing these filters (typically ~800) are then ranked using a **Composite Score**:
+- **Weighted RS (35%)**: IBD-style weighted returns (40% to 3m, 20% each to 6m, 9m, 12m).
+- **Proximity to High (25%)**: Favors stocks trading near 52-week highs.
+- **Base Tightness (25%)**: Favors low-volatility consolidations (inverse of ATR/Close).
+- **Sector RS (15%)**: Favors stocks in leading sectors.
+
+The top **30 candidates** from this ranking proceed to the next phase.
 
 ### Phase 3: Data Enrichment
-- Fetches fresh **Quarterly Fundamentals** and **News** from Screener.in for the top 30 candidates only, saving time and avoiding rate limits.
+- Fetches fresh **Quarterly Fundamentals** and **News** from Screener.in *only* for the top 30 candidates to avoid rate limits.
 
-### Phase 4: AI Analyst (LangGraph Flow)
-- The bot uses a **LangGraph** workflow to analyze candidates in parallel.
-- **Candidate Evaluators**: Each candidate is evaluated by a dedicated Gemini call using tools to fetch detailed daily charts, weekly charts, quarterly results, and news *on demand*.
-- **Synthesizer Agent**: Combines the individual evaluations into a single nightly research memo.
-- **Output**: Produces a nightly research memo in three sections:
-  * **SECTION 1: PORTFOLIO REVIEW**: Reviews open positions and manages risk.
-  * **SECTION 2: NEW OPPORTUNITIES**: Full investment thesis for top setups (Conviction >= 7) with detailed evidence.
-  * **SECTION 3: WATCHLIST**: Stocks to track for specific triggers.
+### Phase 4: Multi-Agent AI Analysis (LangGraph)
+
+The bot employs a multi-agent flow designed with **LangGraph** to ensure the highest accuracy and conviction for each selected candidate.
+
+```mermaid
+graph TD
+    START((Start)) --> FetchMacro[1. Fetch Macro Data]
+    FetchMacro --> MapCandidates{2. Map Candidates}
+    MapCandidates -->|Candidate 1| Eval1[3. Evaluate Candidate]
+    MapCandidates -->|Candidate 2| Eval2[3. Evaluate Candidate]
+    MapCandidates -->|Candidate N| EvalN[3. Evaluate Candidate]
+    Eval1 --> Critic[4. Critic / Selector Agent]
+    Eval2 --> Critic
+    EvalN --> Critic
+    Critic --> Synth[5. Synthesizer Agent]
+    Synth --> END((End))
+```
+
+#### The Agents:
+1. **Fetch Macro Data Node**: Fetches global macro context (Nifty, VIX, etc.) once to share across all evaluators.
+2. **Candidate Evaluators (Parallel)**: One Gemini call per candidate. Acts as a SEPA analyst using tools (price history, fundamentals, news) to deep-dive on the specific stock and generate a structured evaluation.
+3. **Critic / Selector Agent**: A strict "portfolio manager" agent that reviews all evaluations, challenges weak theses, and selects only the best candidates (Conviction >= 8 for Buy Setups, 6-8 for Watchlist).
+4. **Synthesizer Agent**: Takes the filtered selections and writes the final nightly research memo with structured decisions.
 
 ### Code 33 Earnings Acceleration
-The system detects Mark Minervini's "Code 33" pattern (3 consecutive quarters of accelerating YoY growth in EPS and Sales) in the database and exposes this flag to Gemini to help it identify elite fundamental momentum.
+The system detects Mark Minervini's "Code 33" pattern (3 consecutive quarters of accelerating YoY growth in EPS and Sales) and exposes this flag to Gemini to help it identify elite fundamental momentum.
 
 
 ## How to Use the Bot (Trading Strategy)

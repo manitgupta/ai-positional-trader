@@ -63,7 +63,7 @@ class ContextBuilder:
         except Exception:
             return "(none)"
 
-    def build_context(self, candidates_df: pd.DataFrame, target_symbol: str = None) -> str:
+    def build_context(self, candidates_df: pd.DataFrame, target_symbol: str = None, macro_snapshot: str = None) -> str:
         today = datetime.date.today().strftime("%Y-%m-%d")
 
         if candidates_df is None or candidates_df.empty:
@@ -73,10 +73,12 @@ class ContextBuilder:
             cols = [c for c in wanted if c in candidates_df.columns]
             cand_text = candidates_df[cols].to_string(index=False)
 
+        macro = macro_snapshot if macro_snapshot else get_macro_snapshot()
+
         return f"""Today: {today}
 
 ## Macro
-{get_macro_snapshot()}
+{macro}
 
 ## Capital state
 {self._capital()}

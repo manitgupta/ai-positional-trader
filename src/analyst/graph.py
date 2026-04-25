@@ -9,10 +9,11 @@ from google import genai
 from google.genai import types
 from dotenv import load_dotenv
 
-from src.analyst.prompts_v2 import CANDIDATE_EVALUATOR_PROMPT, SYNTHESIZER_PROMPT
+from src.analyst.prompts_v2 import CANDIDATE_EVALUATOR_PROMPT, SYNTHESIZER_PROMPT, CRITIC_SELECTOR_PROMPT
 from src.analyst.gemini_call import ANALYST_TOOLS
 from src.analyst.parser import extract_json_blocks
 from src.analyst.context_builder import ContextBuilder
+from src.analyst.tools import get_macro_snapshot
 from config import GEMINI_MODEL, DB_PATH
 import pandas as pd
 
@@ -23,13 +24,20 @@ class OverallState(TypedDict):
     candidates: List[str]
     candidates_df: pd.DataFrame
     evaluations: Annotated[List[Dict[str, Any]], operator.add]
+    selected_candidates: List[Dict[str, Any]]
     final_memo: str
+    macro_snapshot: str
 
 class CandidateState(TypedDict):
     candidate: str
     context: str
 
 # 2. Define Nodes
+
+def fetch_macro_data(state: OverallState):
+    print("🔧 Fetching macro snapshot once for all candidates...")
+    macro = get_macro_snapshot()
+    return {"macro_snapshot": macro}
 
 def evaluate_candidate(state: CandidateState):
     candidate = state["candidate"]
@@ -84,10 +92,56 @@ def evaluate_candidate(state: CandidateState):
         print(f"❌ Error evaluating {candidate}: {e}")
         return {"evaluations": [{"symbol": candidate, "action": "HOLD", "thesis": f"Error during analysis: {e}"}]}
 
-def synthesize_memo(state: OverallState):
+def critic_selector(state: OverallState):
     evaluations = state["evaluations"]
     
-    print(f"📝 Synthesizing memo for {len(evaluations)} candidates...")
+    print(f"🧐 Critically reviewing {len(evaluations)} candidates...")
+    
+    client = genai.Client()
+    
+    cfg = types.GenerateContentConfig(
+        system_instruction=CRITIC_SELECTOR_PROMPT,
+        temperature=0.5,
+    )
+    
+    prompt = f"""
+    Here are the evaluations provided by the analysts:
+    
+    {json.dumps(evaluations, indent=2)}
+    
+    Please critically review them and select the top opportunities.
+    """
+    
+    try:
+        response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
+            config=cfg,
+        )
+        
+        text = response.text
+        blocks = extract_json_blocks(text)
+        
+        if blocks:
+            selection = blocks[0]
+        else:
+            try:
+                selection = json.loads(text.strip())
+            except json.JSONDecodeError:
+                print(f"❌ Failed to parse selection. Raw text: {text[:200]}...")
+                selection = []
+                
+        return {"selected_candidates": selection}
+    except Exception as e:
+        print(f"❌ Error in critic_selector: {e}")
+        return {"selected_candidates": []}
+
+def synthesize_memo(state: OverallState):
+    evaluations = state["evaluations"]
+    selected_candidates = state.get("selected_candidates", [])
+    macro_snapshot = state.get("macro_snapshot", "")
+    
+    print(f"📝 Synthesizing memo for {len(selected_candidates)} selected candidates...")
     
     client = genai.Client()
     
@@ -97,11 +151,16 @@ def synthesize_memo(state: OverallState):
     )
     
     prompt = f"""
-    Here are the individual evaluations for candidates:
+    Here is the Macro Snapshot for the market:
+    {macro_snapshot}
     
+    Here are the detailed evaluations provided by the analysts:
     {json.dumps(evaluations, indent=2)}
     
-    Please synthesize these into the final research memo in the requested format.
+    Here is the final selection and justification from the Critic/Selector:
+    {json.dumps(selected_candidates, indent=2)}
+    
+    Please synthesize these into the final research memo in the requested format. Use the full evaluations to write detailed theses for the selected candidates. Ensure you reference the Macro Snapshot where relevant to contextualize the environment.
     """
     
     try:
@@ -123,23 +182,27 @@ def map_candidates(state: OverallState):
     context_builder = ContextBuilder(DB_PATH)
     return [Send("evaluate_candidate", {
         "candidate": c, 
-        "context": context_builder.build_context(state["candidates_df"], target_symbol=c)
+        "context": context_builder.build_context(state["candidates_df"], target_symbol=c, macro_snapshot=state.get("macro_snapshot"))
     }) for c in state["candidates"]]
 
 workflow = StateGraph(OverallState)
 
 # Add nodes
+workflow.add_node("fetch_macro_data", fetch_macro_data)
 workflow.add_node("evaluate_candidate", evaluate_candidate)
+workflow.add_node("critic_selector", critic_selector)
 workflow.add_node("synthesize_memo", synthesize_memo)
 
 # Add edges
+workflow.add_edge(START, "fetch_macro_data")
 workflow.add_conditional_edges(
-    START,
+    "fetch_macro_data",
     map_candidates,
     ["evaluate_candidate"]
 )
 
-workflow.add_edge("evaluate_candidate", "synthesize_memo")
+workflow.add_edge("evaluate_candidate", "critic_selector")
+workflow.add_edge("critic_selector", "synthesize_memo")
 workflow.add_edge("synthesize_memo", END)
 
 # Compile
