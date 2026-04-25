@@ -28,7 +28,7 @@ class NewsFetcher:
         all_items = []
         
         # Get company name for better matching
-        with duckdb.connect(self.db_path, read_only=True) as conn:
+        with duckdb.connect(self.db_path) as conn:
             row = conn.execute("SELECT company_name FROM universe WHERE symbol = ?", (symbol,)).fetchone()
             company_name = row[0] if row else symbol
             
