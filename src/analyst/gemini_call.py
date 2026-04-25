@@ -9,6 +9,7 @@ from src.analyst.tools import (
     get_price_history,
     get_weekly_history,
     get_fundamentals,
+    get_quarterly_results,
     get_news,
     get_research_notes,
     get_open_position_detail,
@@ -27,6 +28,7 @@ ANALYST_TOOLS = [
     get_price_history,
     get_weekly_history,
     get_fundamentals,
+    get_quarterly_results,
     get_news,
     get_research_notes,
     get_open_position_detail,
@@ -67,13 +69,31 @@ class GeminiAnalyst:
                 delay = min(delay * 2, 60)
 
     def generate_memo(self, kernel_context: str) -> str:
-        """Run the full agentic research loop. Gemini will call tools as needed."""
+        """Run the full agentic research loop using a Chat session."""
         cfg = types.GenerateContentConfig(
             system_instruction=SYSTEM_PROMPT,
             temperature=1.0,
             tools=ANALYST_TOOLS,
         )
-        return self._call(kernel_context, cfg, "memo")
+        print("Creating chat session for memo...")
+        chat = self.client.chats.create(
+            model=self.model_name,
+            config=cfg
+        )
+        
+        delay = 2
+        for attempt in range(10):
+            print(f"Calling Gemini Chat ({self.model_name}) [memo] — attempt {attempt + 1}/10")
+            try:
+                response = chat.send_message(kernel_context)
+                return response.text
+            except Exception as e:
+                print(f"Gemini chat failed: {e}")
+                if attempt == 9:
+                    raise
+                print(f"Retrying in {delay}s...")
+                time.sleep(delay)
+                delay = min(delay * 2, 60)
 
     def generate_summary(self, memo: str, prompt: str) -> str:
         """Condense the memo into a Telegram-ready summary. No tools needed."""

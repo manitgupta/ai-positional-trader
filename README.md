@@ -15,14 +15,42 @@ For detailed instructions on how to:
 
 Please refer to the [SETUP.md](file:///Users/manitgupta/experiments/ai-positional-trader/SETUP.md) file.
 
-## The Stock Selection Process
+## The Stock Selection Process (Methodology)
 
-Every night, the bot follows a disciplined multi-step process to identify high-conviction setups:
+Every night, the bot follows a disciplined multi-phase process to identify high-conviction setups, moving from brute-force data filtering to deep AI analysis.
 
-1. **Technical Hard Filters**: Scans the 2,300+ stock universe for strong Stage 2 uptrends, high Relative Strength (RS Rank), and price above the 200-day moving average.
-2. **Multi-Timeframe Confirmation**: Pulls the last 5 weekly candles for top candidates to ensure the daily setup is supported by a strong weekly trend.
-3. **Fundamental Verification**: Fetches data from Screener.in (EPS growth, Revenue growth, Promoter holding) to ensure the candidate is a healthy company.
-4. **AI Analyst Review**: Passes the 30-day daily history, 5-week history, and fundamentals to **Gemini**. Gemini acts as a Minervini-style analyst, cross-verifying all data to produce a high-conviction thesis with specific entry triggers and stop losses.
+### Phase 1: Data Foundation
+- **Universe**: The bot scans a universe of ~2,300 common stocks (Series 'EQ').
+- **Daily Prices**: Fetches daily OHLCV data to compute technical indicators.
+- **Weekly Prices**: Fetches weekly data to confirm long-term Stage-2 uptrends.
+
+### Phase 2: Screener (SQL Filters & Ranking)
+Instead of rigid hard filters that might miss early-stage setups (like cup-and-handle bases or power plays), the bot uses loose "data-hygiene" gates followed by a composite scoring system to shortlist the best names:
+1. **Liquidity Gate**: Ensures stock is tradable (Price >= ₹50, 50-day average turnover >= ₹10 crore, Series='EQ').
+2. **Trend Liveness Gate**: Catches emergent Stage-2 names (Price within 50% of 52-w high OR making a higher high vs 3 months ago OR 50-DMA > 200-DMA).
+3. **Composite Scoring**: Surviving candidates (~800 names) are ranked by a score computed in DuckDB SQL and Pandas:
+   * **Weighted RS (35%)**: IBD-style weighted returns (40% to 3m, 20% each to 6m, 9m, 12m).
+   * **Proximity to High (25%)**: Favors stocks trading near 52-week highs.
+   * **Base Tightness (25%)**: Favors low-volatility consolidations (inverse of ATR/Close).
+   * **Sector RS (15%)**: Favors stocks in leading sectors.
+
+The top **30 candidates** from this ranking are passed to the AI Analyst.
+
+### Phase 3: Data Enrichment
+- Fetches fresh **Quarterly Fundamentals** and **News** from Screener.in for the top 30 candidates only, saving time and avoiding rate limits.
+
+### Phase 4: AI Analyst (Gemini Tool-Calling)
+- The bot initializes a **Gemini Chat** session with a highly detailed system prompt based on Minervini SEPA principles.
+- Gemini receives a minimal "kernel" of context (candidates list, open positions, macro snapshot).
+- **Autonomous Research**: Gemini uses tools to fetch detailed daily charts, weekly charts, quarterly results, and news *on demand* for the candidates it finds promising.
+- **Output**: Produces a nightly research memo in three sections:
+  * **SECTION 1: PORTFOLIO REVIEW**: Reviews open positions and manages risk.
+  * **SECTION 2: NEW OPPORTUNITIES**: Full investment thesis for top setups (Conviction >= 7).
+  * **SECTION 3: WATCHLIST**: Stocks to track for specific triggers.
+
+### Code 33 Earnings Acceleration
+The system detects Mark Minervini's "Code 33" pattern (3 consecutive quarters of accelerating YoY growth in EPS and Sales) in the database and exposes this flag to Gemini to help it identify elite fundamental momentum.
+
 
 ## How to Use the Bot (Trading Strategy)
 

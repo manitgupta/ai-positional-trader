@@ -15,7 +15,7 @@ from src.pipeline.fetch_weekly import WeeklyPriceFetcher
 from src.pipeline.compute_signals import SignalComputer
 from src.pipeline.fetch_fundamentals import FundamentalsManager
 from src.pipeline.fetch_news import NewsFetcher
-from src.screener.filters import passes_hard_filters
+# from src.screener.filters import passes_hard_filters
 from src.screener.scorer import compute_composite_scores
 from src.analyst.context_builder import ContextBuilder
 from src.analyst.gemini_call import GeminiAnalyst
@@ -124,16 +124,60 @@ def run_nightly_pipeline():
             
     conn.close()
             
-    # 2. Screener - Step 1: Technical Hard Filters
-    print("\n--- Phase 2: Screener (Technical Hard Filters) ---")
+    # 2. Screener - Step 1: Technical Filters & Signals in SQL
+    print("\n--- Phase 2: Screener (SQL Filters & Scoring) ---")
     conn = duckdb.connect(DB_PATH)
+    
+    # Query to compute returns and turnover in SQL, and apply loose filters
     query = """
-        SELECT s.*, p.close, p.volume
-        FROM signals s
-        JOIN prices p ON s.symbol = p.symbol AND s.date = p.date
-        QUALIFY ROW_NUMBER() OVER(PARTITION BY s.symbol ORDER BY s.date DESC) = 1
+        WITH signals_with_prices AS (
+            SELECT s.*, p.close, p.volume, u.series, u.sector,
+                   LAG(p.close, 63) OVER(PARTITION BY s.symbol ORDER BY s.date) as close_3m,
+                   LAG(p.close, 126) OVER(PARTITION BY s.symbol ORDER BY s.date) as close_6m,
+                   LAG(p.close, 189) OVER(PARTITION BY s.symbol ORDER BY s.date) as close_9m,
+                   LAG(p.close, 252) OVER(PARTITION BY s.symbol ORDER BY s.date) as close_12m,
+                   AVG(p.volume * p.close) OVER(PARTITION BY s.symbol ORDER BY s.date ROWS BETWEEN 49 PRECEDING AND CURRENT ROW) as avg_turnover
+            FROM signals s
+            JOIN prices p ON s.symbol = p.symbol AND s.date = p.date
+            JOIN universe u ON s.symbol = u.symbol
+        ),
+        quarterly_growth AS (
+            SELECT symbol, quarter, eps_growth_yoy, rev_growth_yoy,
+                   LAG(eps_growth_yoy, 1) OVER(PARTITION BY symbol ORDER BY quarter) as prev_eps_growth,
+                   LAG(eps_growth_yoy, 2) OVER(PARTITION BY symbol ORDER BY quarter) as prev2_eps_growth,
+                   LAG(rev_growth_yoy, 1) OVER(PARTITION BY symbol ORDER BY quarter) as prev_rev_growth,
+                   LAG(rev_growth_yoy, 2) OVER(PARTITION BY symbol ORDER BY quarter) as prev2_rev_growth
+            FROM quarterly_results
+        ),
+        code33_status AS (
+            SELECT symbol,
+                   (eps_growth_yoy > prev_eps_growth AND prev_eps_growth > prev2_eps_growth) as code33_eps,
+                   (rev_growth_yoy > prev_rev_growth AND prev_rev_growth > prev2_rev_growth) as code33_rev
+            FROM quarterly_growth
+            QUALIFY ROW_NUMBER() OVER(PARTITION BY symbol ORDER BY quarter DESC) = 1
+        ),
+        latest_data AS (
+            SELECT s.*,
+                   (s.close - s.close_3m) / s.close_3m as ret_3m,
+                   (s.close - s.close_6m) / s.close_6m as ret_6m,
+                   (s.close - s.close_9m) / s.close_9m as ret_9m,
+                   (s.close - s.close_12m) / s.close_12m as ret_12m,
+                   q.code33_eps, q.code33_rev
+            FROM signals_with_prices s
+            LEFT JOIN code33_status q ON s.symbol = q.symbol
+            QUALIFY ROW_NUMBER() OVER(PARTITION BY s.symbol ORDER BY s.date DESC) = 1
+        )
+        SELECT *
+        FROM latest_data
+        WHERE series = 'EQ'
+          AND close >= 50
+          AND avg_turnover >= 100000000 -- 10 crore
+          AND (pct_from_52w_high >= -50 OR sma_50 > sma_200 OR close > close_3m)
     """
-    all_data = conn.execute(query).fetchdf()
+    
+    all_candidates = conn.execute(query).fetchdf()
+    
+    # Get forced symbols (portfolio + watchlist)
     portfolio_symbols = []
     try:
         portfolio_symbols = conn.execute("SELECT symbol FROM portfolio WHERE status = 'OPEN'").fetchdf()['symbol'].tolist()
@@ -154,20 +198,33 @@ def run_nightly_pipeline():
         pass
         
     forced_symbols = list(set(portfolio_symbols + journal_symbols))
+    
+    # Combine query results with forced symbols
     conn.close()
     
-    all_data['passes'] = all_data.apply(passes_hard_filters, axis=1)
-    candidates = all_data[all_data['passes'] | all_data['symbol'].isin(forced_symbols)].copy()
+    # If forced symbols are missing from all_candidates, we should ideally fetch them.
+    # For now, we just ensure they are included if they were in the signals table.
+    # (Simulated by adding them to the dataframe if missing and available in DB)
     
-    print(f"Found {len(candidates)} candidates passing technical filters.")
+    print(f"Found {len(all_candidates)} candidates passing loose filters.")
     
-    if candidates.empty:
-        print("No candidates passed filters today. Stopping execution.")
-        return
+    # Compute composite score
+    if not all_candidates.empty:
+        all_candidates = compute_composite_scores(all_candidates)
+        all_candidates = all_candidates.sort_values(by='composite_score', ascending=False)
         
-    candidate_symbols = candidates['symbol'].tolist()
+    # Take top 30 candidates
+    top_candidates = all_candidates.head(30)
+    candidate_symbols = top_candidates['symbol'].tolist()
     
-    # 3. Data Foundation (Fundamentals & News only for candidates)
+    # Add forced symbols if not in top 30
+    for sym in forced_symbols:
+        if sym not in candidate_symbols:
+            candidate_symbols.append(sym)
+            
+    print(f"Final candidate list size: {len(candidate_symbols)}")
+    
+    # 3. Data Foundation (Fundamentals & News only for top candidates)
     print("\n--- Phase 3: Fundamentals + News for Candidates ---")
     fund_manager = FundamentalsManager(DB_PATH)
     news_fetcher = NewsFetcher(DB_PATH)
@@ -177,30 +234,55 @@ def run_nightly_pipeline():
         news_df = news_fetcher.process_news(symbol)
         news_fetcher.save_to_db(news_df)
         
-    # 4. Screener - Step 2: Score Candidates
-    print("\n--- Phase 2: Screener (Composite Scoring) ---")
+    # Refresh data with fundamentals for Gemini
     conn = duckdb.connect(DB_PATH)
     query = f"""
-        SELECT s.*, p.close, p.volume, f.eps_growth_yoy, f.rev_growth_yoy, f.promoter_holding, f.earnings_surprise
+        WITH quarterly_growth AS (
+            SELECT symbol, quarter, eps_growth_yoy, rev_growth_yoy,
+                   LAG(eps_growth_yoy, 1) OVER(PARTITION BY symbol ORDER BY quarter) as prev_eps_growth,
+                   LAG(eps_growth_yoy, 2) OVER(PARTITION BY symbol ORDER BY quarter) as prev2_eps_growth,
+                   LAG(rev_growth_yoy, 1) OVER(PARTITION BY symbol ORDER BY quarter) as prev_rev_growth,
+                   LAG(rev_growth_yoy, 2) OVER(PARTITION BY symbol ORDER BY quarter) as prev2_rev_growth
+            FROM quarterly_results
+            WHERE symbol IN ({','.join([f"'{s}'" for s in candidate_symbols])})
+        ),
+        code33_status AS (
+            SELECT symbol, quarter,
+                   (eps_growth_yoy > prev_eps_growth AND prev_eps_growth > prev2_eps_growth) as code33_eps,
+                   (rev_growth_yoy > prev_rev_growth AND prev_rev_growth > prev2_rev_growth) as code33_rev
+            FROM quarterly_growth
+            QUALIFY ROW_NUMBER() OVER(PARTITION BY symbol ORDER BY quarter DESC) = 1
+        ),
+        latest_annual AS (
+            SELECT symbol, eps_growth_yoy, rev_growth_yoy, promoter_holding, earnings_surprise
+            FROM annual_results
+            WHERE symbol IN ({','.join([f"'{s}'" for s in candidate_symbols])})
+            QUALIFY ROW_NUMBER() OVER(PARTITION BY symbol ORDER BY fetch_date DESC) = 1
+        )
+        SELECT s.*, p.close, p.volume, 
+               a.eps_growth_yoy as annual_eps_growth, a.rev_growth_yoy as annual_rev_growth,
+               q.code33_eps, q.code33_rev, a.promoter_holding, a.earnings_surprise
         FROM signals s
         JOIN prices p ON s.symbol = p.symbol AND s.date = p.date
-        LEFT JOIN fundamentals f ON s.symbol = f.symbol
+        LEFT JOIN code33_status q ON s.symbol = q.symbol
+        LEFT JOIN latest_annual a ON s.symbol = a.symbol
         WHERE s.symbol IN ({','.join([f"'{s}'" for s in candidate_symbols])})
         QUALIFY ROW_NUMBER() OVER(PARTITION BY s.symbol ORDER BY s.date DESC) = 1
     """
     candidate_data = conn.execute(query).fetchdf()
     conn.close()
     
-    scored_candidates = compute_composite_scores(candidate_data)
+    # Merge with composite score computed earlier
+    scored_candidates = candidate_data.merge(all_candidates[['symbol', 'composite_score']], on='symbol', how='left')
     scored_candidates = scored_candidates.sort_values(by='composite_score', ascending=False)
     
-    print("Top candidates after composite scoring:")
+    print("Top candidates passed to Gemini:")
     print(scored_candidates[['symbol', 'composite_score']].head(10))
     
     # 5. Gemini Analyst
     print("\n--- Phase 4: Gemini Analyst ---")
     context_builder = ContextBuilder(DB_PATH)
-    context = context_builder.build_context(scored_candidates.head(25))
+    context = context_builder.build_context(scored_candidates.head(30))
     
     analyst = GeminiAnalyst()
     memo = analyst.generate_memo(context)

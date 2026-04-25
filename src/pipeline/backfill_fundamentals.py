@@ -1,10 +1,9 @@
 import os
 import time
 import datetime
-import pandas as pd
 import duckdb
 from dotenv import load_dotenv
-from src.pipeline.fetch_fundamentals import ScreenerFetcher
+from src.pipeline.fetch_fundamentals import FundamentalsManager
 
 load_dotenv()
 
@@ -17,40 +16,38 @@ def backfill_fundamentals():
         print(f"Database not found at {DB_PATH}")
         return
         
+    # Instantiate manager
+    manager = FundamentalsManager(DB_PATH)
+    
+    # Query for symbols that need update
+    # We consider data stale if older than 30 days for backfill purposes
     conn = duckdb.connect(DB_PATH)
-    symbols = conn.execute("SELECT symbol FROM universe").fetchdf()['symbol'].tolist()
-    conn.close()
-    
-    print(f"Starting fundamentals backfill for {len(symbols)} symbols...")
-    
-    fetcher = ScreenerFetcher()
+    try:
+        symbols_df = conn.execute("""
+            SELECT u.symbol
+            FROM universe u
+            WHERE u.symbol NOT IN (
+                SELECT DISTINCT symbol 
+                FROM quarterly_results
+            )
+        """).fetchdf()
+        symbols = symbols_df['symbol'].tolist()
+    except Exception as e:
+        print(f"Error querying symbols: {e}")
+        return
+    finally:
+        conn.close()
+        
+    print(f"Found {len(symbols)} symbols needing fundamentals update.")
     
     for i, symbol in enumerate(symbols):
-        print(f"[{i+1}/{len(symbols)}] Fetching fundamentals for {symbol}...")
-        
+        print(f"[{i+1}/{len(symbols)}] Updating fundamentals for {symbol}...")
         try:
-            df = fetcher.fetch_fundamentals(symbol)
-            
-            if not df.empty:
-                conn = duckdb.connect(DB_PATH)
-                df['fetch_date'] = datetime.date.today()
-                
-                conn.register('df_view', df)
-                conn.execute("""
-                    INSERT OR REPLACE INTO fundamentals 
-                    SELECT symbol, quarter, eps, eps_growth_yoy, revenue, rev_growth_yoy, 
-                           earnings_surprise, roe, debt_to_equity, promoter_holding, fetch_date
-                    FROM df_view
-                """)
-                conn.close()
-                print(f"Saved fundamentals for {symbol}")
-            else:
-                print(f"No data for {symbol}")
-                
+            manager.update_quarterly_data(symbol)
         except Exception as e:
-            print(f"Error fetching fundamentals for {symbol}: {e}")
+            print(f"Error updating {symbol}: {e}")
             
-        time.sleep(1) # Throttle to avoid rate limits
+        time.sleep(2) # Throttling to be safe
         
     print("Backfill completed!")
 

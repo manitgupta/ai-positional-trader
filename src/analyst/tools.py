@@ -227,8 +227,9 @@ def get_weekly_history(symbol: str, weeks: int = 10) -> str:
 
 def get_fundamentals(symbol: str) -> str:
     """
-    Latest scraped fundamentals for `symbol`: EPS, EPS growth YoY, revenue,
+    Latest annual results (TTM) for `symbol`: EPS, EPS growth YoY, revenue,
     revenue growth YoY, earnings surprise, promoter holding, fetch date.
+    Read from `annual_results` table.
     Check whether a technical setup is backed by healthy earnings and stable
     promoter ownership.
 
@@ -239,10 +240,27 @@ def get_fundamentals(symbol: str) -> str:
         df = c.execute("""
             SELECT symbol, quarter, eps, eps_growth_yoy, revenue, rev_growth_yoy,
                    earnings_surprise, promoter_holding, fetch_date
-            FROM fundamentals WHERE symbol = ?
+            FROM annual_results WHERE symbol = ?
             ORDER BY fetch_date DESC LIMIT 1
         """, (symbol,)).fetchdf()
-    return _fmt(df, f"no stored fundamentals for {symbol}")
+    return _fmt(df, f"no stored annual results for {symbol}")
+
+
+def get_quarterly_results(symbol: str) -> str:
+    """
+    Recent quarterly results for `symbol` to check for earnings acceleration.
+    Read from `quarterly_results` table.
+
+    Args:
+        symbol: NSE ticker without suffix.
+    """
+    with duckdb.connect(DB_PATH, read_only=True) as c:
+        df = c.execute("""
+            SELECT symbol, quarter, eps, eps_growth_yoy, revenue, rev_growth_yoy, net_profit, fetch_date
+            FROM quarterly_results WHERE symbol = ?
+            ORDER BY quarter DESC LIMIT 6
+        """, (symbol,)).fetchdf()
+    return _fmt(df, f"no stored quarterly results for {symbol}")
 
 
 def get_news(symbol: str, days: int = 14) -> str:

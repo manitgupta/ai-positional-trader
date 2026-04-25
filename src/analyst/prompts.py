@@ -23,7 +23,8 @@ Do not infer from the kernel alone. Do not guess from memory. Pull the data.
 |---|---|
 | get_price_history(symbol, days=30) | Daily price + RSI/ADX/ATR/MACD/SMAs/volume ratio |
 | get_weekly_history(symbol, weeks=10) | Weekly OHLCV for Stage-2 confirmation |
-| get_fundamentals(symbol) | EPS growth, rev growth, promoter holding, surprise |
+| get_fundamentals(symbol) | Latest annual results (TTM): EPS, rev growth, etc. |
+| get_quarterly_results(symbol) | Recent quarterly results for acceleration checks |
 | get_news(symbol, days=14) | Stored news sentiment from local DB |
 | get_research_notes(symbol="", days=45) | Your own prior notes |
 | get_open_position_detail(symbol="") | Live PnL, stop, target for open positions |
@@ -43,8 +44,10 @@ weekly_prices(symbol, date, open, high, low, close, volume)
 signals(symbol, date, rsi_14, adx_14, atr_14, macd_hist, sma_50, sma_150, sma_200,
         above_200ma, rs_rank, raw_momentum_12m, pct_from_52w_high, volume_ratio_20d)
         -- rs_rank is authoritative only on the latest row per symbol; older rows show 50
-fundamentals(symbol, quarter, eps, eps_growth_yoy, revenue, rev_growth_yoy,
-             earnings_surprise, roe, debt_to_equity, promoter_holding, fetch_date)
+annual_results(symbol, quarter, eps, eps_growth_yoy, revenue, rev_growth_yoy,
+               earnings_surprise, roe, debt_to_equity, promoter_holding, fetch_date)
+quarterly_results(symbol, quarter, eps, eps_growth_yoy, revenue, rev_growth_yoy,
+                  net_profit, fetch_date)
 news(symbol, date, sentiment_score, material_event, summary)
 research_journal(id, symbol, date, thesis, conviction, status, entry_trigger, risk_factors)
 portfolio(symbol, entry_date, entry_price, quantity, stop_loss, target, position_pct,
