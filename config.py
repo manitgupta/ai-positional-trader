@@ -32,5 +32,5 @@ RUN_TIME_IST = "16:05"               # 35 min after market close
 
 # Paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "data", "universe.duckdb")
+DB_PATH = "md:trading_db" if os.environ.get("USE_MOTHERDUCK") == "true" else os.path.join(BASE_DIR, "data", "universe.duckdb")
 SCHEMA_PATH = os.path.join(BASE_DIR, "data", "schema.sql")
