@@ -19,6 +19,7 @@ from src.pipeline.fetch_news import NewsFetcher
 from src.screener.scorer import compute_composite_scores
 from src.analyst.context_builder import ContextBuilder
 from src.analyst.gemini_call import GeminiAnalyst
+from src.analyst.graph import app as analyst_graph
 from src.analyst.parser import extract_json_blocks
 from src.portfolio.journal import ResearchJournal
 from src.portfolio.manager import PortfolioManager
@@ -290,8 +291,9 @@ def run_nightly_pipeline():
     context_builder = ContextBuilder(DB_PATH)
     context = context_builder.build_context(scored_candidates.head(30))
     
-    analyst = GeminiAnalyst()
-    memo = analyst.generate_memo(context)
+    print(f"Running LangGraph flow for {len(candidate_symbols)} candidates...")
+    graph_result = analyst_graph.invoke({"candidates": candidate_symbols, "context": context})
+    memo = graph_result.get("final_memo", "")
     
     print("\n--- Memo Generated ---")
     print(memo)
@@ -347,7 +349,7 @@ def run_nightly_pipeline():
     - A 🚀 <b>BUY SETUPS</b> section with clean, structured details for each top candidate.
     - A 👀 <b>WATCHLIST</b> section with specific triggers.
     """
-    summary = analyst.generate_summary(memo, summary_prompt)
+    summary = GeminiAnalyst().generate_summary(memo, summary_prompt)
     
     # 8. Notifications
     print("\n--- Phase 7: Notifications ---")
