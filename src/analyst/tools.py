@@ -77,7 +77,7 @@ def get_breadth() -> str:
     Use to judge if the market environment supports breakouts.
     """
     try:
-        with duckdb.connect(DB_PATH, read_only=True) as c:
+        with duckdb.connect(DB_PATH) as c:
             # Get latest date
             latest_date = c.execute("SELECT max(date) FROM signals").fetchone()[0]
             if not latest_date:
@@ -140,7 +140,7 @@ def get_sector_peers(symbol: str) -> str:
     Use to compare a candidate with its industry peers.
     """
     try:
-        with duckdb.connect(DB_PATH, read_only=True) as c:
+        with duckdb.connect(DB_PATH) as c:
             # Get sector for the symbol
             sector_res = c.execute("SELECT sector FROM universe WHERE symbol = ?", (symbol,)).fetchone()
             if not sector_res or not sector_res[0]:
@@ -170,7 +170,7 @@ def get_sector_relative_strength(sector: str) -> str:
     Use to identify leading sectors.
     """
     try:
-        with duckdb.connect(DB_PATH, read_only=True) as c:
+        with duckdb.connect(DB_PATH) as c:
             df = c.execute("""
                 SELECT AVG(s.rs_rank) as avg_rs_rank, COUNT(DISTINCT u.symbol) as company_count
                 FROM universe u
@@ -250,7 +250,7 @@ def get_price_history(symbol: str, days: int = 30) -> str:
     """
     print(f"🔧 [TOOL CALL] get_price_history for {symbol} (days={days})")
     days = max(1, min(int(days), 1200))
-    with duckdb.connect(DB_PATH, read_only=True) as c:
+    with duckdb.connect(DB_PATH) as c:
         df = c.execute(f"""
             SELECT s.date, p.close, p.volume,
                    s.rsi_14, s.adx_14, s.atr_14, s.macd_hist,
@@ -276,7 +276,7 @@ def get_weekly_history(symbol: str, weeks: int = 10) -> str:
     """
     print(f"🔧 [TOOL CALL] get_weekly_history for {symbol} (weeks={weeks})")
     weeks = max(1, min(int(weeks), 550))
-    with duckdb.connect(DB_PATH, read_only=True) as c:
+    with duckdb.connect(DB_PATH) as c:
         df = c.execute(f"""
             SELECT date, open, high, low, close, volume
             FROM weekly_prices WHERE symbol = ?
@@ -297,7 +297,7 @@ def get_fundamentals(symbol: str) -> str:
     Args:
         symbol: NSE ticker without suffix.
     """
-    with duckdb.connect(DB_PATH, read_only=True) as c:
+    with duckdb.connect(DB_PATH) as c:
         df = c.execute("""
             SELECT symbol, quarter, eps, eps_growth_yoy, revenue, rev_growth_yoy,
                    earnings_surprise, promoter_holding, fetch_date
@@ -316,7 +316,7 @@ def get_quarterly_results(symbol: str) -> str:
     Args:
         symbol: NSE ticker without suffix.
     """
-    with duckdb.connect(DB_PATH, read_only=True) as c:
+    with duckdb.connect(DB_PATH) as c:
         df = c.execute("""
             SELECT symbol, quarter, eps, eps_growth_yoy, revenue, rev_growth_yoy, net_profit, fetch_date
             FROM quarterly_results WHERE symbol = ?
@@ -336,7 +336,7 @@ def get_news(symbol: str, days: int = 14) -> str:
         days:   lookback window in days (default 14, capped at 90).
     """
     days = max(1, min(int(days), 90))
-    with duckdb.connect(DB_PATH, read_only=True) as c:
+    with duckdb.connect(DB_PATH) as c:
         df = c.execute(f"""
             SELECT date, sentiment_score, material_event, summary
             FROM news WHERE symbol = ?
@@ -358,7 +358,7 @@ def get_research_notes(symbol: str = "", days: int = 45) -> str:
         days:   lookback window in days (default 45, capped at 365).
     """
     days = max(1, min(int(days), 365))
-    with duckdb.connect(DB_PATH, read_only=True) as c:
+    with duckdb.connect(DB_PATH) as c:
         if symbol:
             df = c.execute(f"""
                 SELECT symbol, date, conviction, status, entry_trigger, thesis, risk_factors
@@ -391,7 +391,7 @@ def get_open_position_detail(symbol: str = "") -> str:
     if symbol:
         where += " AND p.symbol = ?"
         args = (symbol,)
-    with duckdb.connect(DB_PATH, read_only=True) as c:
+    with duckdb.connect(DB_PATH) as c:
         df = c.execute(f"""
             SELECT p.symbol, p.entry_date, p.entry_price, p.quantity,
                    p.stop_loss, p.target, p.position_pct, p.thesis_summary,
@@ -417,7 +417,7 @@ def get_position_history(symbol: str) -> str:
     Args:
         symbol: NSE ticker without suffix. Must be an open position.
     """
-    with duckdb.connect(DB_PATH, read_only=True) as c:
+    with duckdb.connect(DB_PATH) as c:
         row = c.execute(
             "SELECT entry_date FROM portfolio WHERE symbol = ? AND status='OPEN' LIMIT 1",
             (symbol,)
@@ -467,7 +467,7 @@ def execute_read_only_query(query: str) -> str:
     if any(f" {k} " in padded for k in forbidden):
         return "Error: write/DDL keyword detected. Query rejected."
     try:
-        with duckdb.connect(DB_PATH, read_only=True) as c:
+        with duckdb.connect(DB_PATH) as c:
             df = c.execute(q).fetchdf()
         return _fmt(df)
     except Exception as e:

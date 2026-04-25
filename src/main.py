@@ -104,25 +104,31 @@ def run_nightly_pipeline():
     # Compute RS Rank percentiles globally
     print("Computing global RS Rank percentiles...")
     conn = duckdb.connect(DB_PATH)
-    latest_signals_df = conn.execute("""
-        SELECT symbol, date, raw_momentum_12m
-        FROM signals
-        QUALIFY ROW_NUMBER() OVER(PARTITION BY symbol ORDER BY date DESC) = 1
-    """).fetchdf()
-    
-    if not latest_signals_df.empty:
-        latest_signals_df = latest_signals_df.dropna(subset=['raw_momentum_12m'])
-        if not latest_signals_df.empty:
-            latest_signals_df['rs_rank'] = (latest_signals_df['raw_momentum_12m'].rank(pct=True) * 100).astype(int)
-        
-        for index, row in latest_signals_df.iterrows():
-            conn.execute("""
-                UPDATE signals 
-                SET rs_rank = ? 
-                WHERE symbol = ? AND date = ?
-            """, (int(row['rs_rank']), row['symbol'], row['date']))
-            
-    conn.close()
+    print("Executing single-query update for RS Rank...")
+    try:
+        conn.execute("""
+            WITH latest_signals AS (
+                SELECT symbol, date, raw_momentum_12m,
+                       ROW_NUMBER() OVER(PARTITION BY symbol ORDER BY date DESC) as rn
+                FROM signals
+                WHERE raw_momentum_12m IS NOT NULL
+            ),
+            ranked_signals AS (
+                SELECT symbol, date,
+                       CAST(PERCENT_RANK() OVER(ORDER BY raw_momentum_12m) * 100 AS INTEGER) as rs_rank
+                FROM latest_signals
+                WHERE rn = 1
+            )
+            UPDATE signals
+            SET rs_rank = ranked_signals.rs_rank
+            FROM ranked_signals
+            WHERE signals.symbol = ranked_signals.symbol AND signals.date = ranked_signals.date;
+        """)
+        print("Successfully updated RS Rank percentiles.")
+    except Exception as e:
+        print(f"Error updating RS Rank: {e}")
+    finally:
+        conn.close()
             
     # 2. Screener - Step 1: Technical Filters & Signals in SQL
     print("\n--- Phase 2: Screener (SQL Filters & Scoring) ---")
