@@ -6,6 +6,7 @@ import yfinance as yf
 from config import DB_PATH
 
 def get_macro_snapshot() -> str:
+    print(f"🔧 [TOOL CALL] get_macro_snapshot")
     """
     Fetches a snapshot of key macro indicators:
     - Nifty 50 (^NSEI) position vs 50/200 DMA
@@ -67,6 +68,7 @@ def get_macro_snapshot() -> str:
 
 
 def get_breadth() -> str:
+    print(f"🔧 [TOOL CALL] get_breadth")
     """
     Computes market breadth metrics from stored signals and prices:
     - % of universe above 50 and 200 DMA
@@ -131,7 +133,65 @@ def get_breadth() -> str:
         return f"Error computing breadth: {e}"
 
 
+def get_sector_peers(symbol: str) -> str:
+    print(f"🔧 [TOOL CALL] get_sector_peers for {symbol}")
+    """
+    Fetches key metrics for peers in the same sector as `symbol`.
+    Use to compare a candidate with its industry peers.
+    """
+    try:
+        with duckdb.connect(DB_PATH, read_only=True) as c:
+            # Get sector for the symbol
+            sector_res = c.execute("SELECT sector FROM universe WHERE symbol = ?", (symbol,)).fetchone()
+            if not sector_res or not sector_res[0]:
+                return f"No sector found for {symbol}."
+            sector = sector_res[0]
+            
+            # Get peers in the same sector
+            peers_df = c.execute("""
+                SELECT u.symbol, u.company_name, s.rs_rank, s.pct_from_52w_high
+                FROM universe u
+                LEFT JOIN signals s ON u.symbol = s.symbol
+                WHERE u.sector = ? AND u.symbol != ?
+                QUALIFY ROW_NUMBER() OVER (PARTITION BY u.symbol ORDER BY s.date DESC) = 1
+                ORDER BY s.rs_rank DESC
+                LIMIT 10
+            """, (sector, symbol)).fetchdf()
+            
+            return f"--- Peers in Sector: {sector} ---\n{_fmt(peers_df, 'no peers found')}"
+    except Exception as e:
+        return f"Error fetching sector peers: {e}"
+
+
+def get_sector_relative_strength(sector: str) -> str:
+    print(f"🔧 [TOOL CALL] get_sector_relative_strength for {sector}")
+    """
+    Computes the average RS rank for all symbols in a given `sector`.
+    Use to identify leading sectors.
+    """
+    try:
+        with duckdb.connect(DB_PATH, read_only=True) as c:
+            df = c.execute("""
+                SELECT AVG(s.rs_rank) as avg_rs_rank, COUNT(DISTINCT u.symbol) as company_count
+                FROM universe u
+                JOIN signals s ON u.symbol = s.symbol
+                WHERE u.sector = ?
+                QUALIFY ROW_NUMBER() OVER (PARTITION BY u.symbol ORDER BY s.date DESC) = 1
+            """, (sector,)).fetchdf()
+            
+            if df.empty or pd.isna(df['avg_rs_rank'].iloc[0]):
+                return f"No data found for sector {sector}."
+                
+            avg_rs = df['avg_rs_rank'].iloc[0]
+            count = df['company_count'].iloc[0]
+            
+            return f"Sector: {sector} | Avg RS Rank: {avg_rs:.1f} | Companies: {count}"
+    except Exception as e:
+        return f"Error computing sector RS: {e}"
+
+
 def get_earnings_calendar(symbol: str, days_ahead: int = 14) -> str:
+    print(f"🔧 [TOOL CALL] get_earnings_calendar for {symbol} (days_ahead={days_ahead})")
     """
     Checks if `symbol` has an earnings date scheduled within the next `days_ahead` days.
     Use to avoid buying right before earnings.
@@ -226,6 +286,7 @@ def get_weekly_history(symbol: str, weeks: int = 10) -> str:
 
 
 def get_fundamentals(symbol: str) -> str:
+    print(f"🔧 [TOOL CALL] get_fundamentals for {symbol}")
     """
     Latest annual results (TTM) for `symbol`: EPS, EPS growth YoY, revenue,
     revenue growth YoY, earnings surprise, promoter holding, fetch date.
@@ -247,6 +308,7 @@ def get_fundamentals(symbol: str) -> str:
 
 
 def get_quarterly_results(symbol: str) -> str:
+    print(f"🔧 [TOOL CALL] get_quarterly_results for {symbol}")
     """
     Recent quarterly results for `symbol` to check for earnings acceleration.
     Read from `quarterly_results` table.
@@ -264,6 +326,7 @@ def get_quarterly_results(symbol: str) -> str:
 
 
 def get_news(symbol: str, days: int = 14) -> str:
+    print(f"🔧 [TOOL CALL] get_news for {symbol} (days={days})")
     """
     Stored news sentiment for `symbol` in the last `days` days. For fresher
     or material news beyond local data, use search_web instead.
@@ -284,6 +347,7 @@ def get_news(symbol: str, days: int = 14) -> str:
 
 
 def get_research_notes(symbol: str = "", days: int = 45) -> str:
+    print(f"🔧 [TOOL CALL] get_research_notes for {symbol} (days={days})")
     """
     Your own prior research notes from the research_journal table.
     Pass symbol="" to get a summary of all recently tracked symbols.
@@ -313,6 +377,7 @@ def get_research_notes(symbol: str = "", days: int = 45) -> str:
 
 
 def get_open_position_detail(symbol: str = "") -> str:
+    print(f"🔧 [TOOL CALL] get_open_position_detail for {symbol}")
     """
     Open positions with current context: entry price, current close, PnL%,
     stop loss, target, latest RSI and ADX.
@@ -342,6 +407,7 @@ def get_open_position_detail(symbol: str = "") -> str:
 
 
 def get_position_history(symbol: str) -> str:
+    print(f"🔧 [TOOL CALL] get_position_history for {symbol}")
     """
     For an open position, returns two windows:
     1. ±15 trading days around entry_date — to recall the original setup.
@@ -380,6 +446,7 @@ def get_position_history(symbol: str) -> str:
 
 
 def execute_read_only_query(query: str) -> str:
+    print(f"🔧 [TOOL CALL] execute_read_only_query: {query[:50]}...")
     """
     Escape hatch: execute a raw SELECT on the DuckDB database.
     Only SELECT and WITH...SELECT statements are permitted.

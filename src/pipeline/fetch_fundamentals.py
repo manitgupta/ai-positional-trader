@@ -170,7 +170,7 @@ class ScreenerFetcher:
                 # Get data cells (all cells except the first one, which is the header)
                 data_cells = [c.get_text().strip() for c in cells[1:]]
                 
-                if 'Sales' in header:
+                if 'Sales' in header or 'Revenue' in header:
                     sales_row = data_cells
                 elif 'Net Profit' in header:
                     net_profit_row = data_cells
@@ -235,6 +235,10 @@ class FundamentalsManager:
     def __init__(self, db_path):
         self.db_path = db_path
         self.fetcher = ScreenerFetcher()
+        
+    def update_fundamentals(self, symbol):
+        self.update_annual_data(symbol)
+        self.update_quarterly_data(symbol)
             
     def update_annual_data(self, symbol):
         # Check cache: skip if fetched within last 30 days for annual

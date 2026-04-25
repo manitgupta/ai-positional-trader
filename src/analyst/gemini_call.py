@@ -14,10 +14,11 @@ from src.analyst.tools import (
     get_research_notes,
     get_open_position_detail,
     get_position_history,
-    execute_read_only_query,
     get_macro_snapshot,
     get_breadth,
     get_earnings_calendar,
+    get_sector_peers,
+    get_sector_relative_strength,
 )
 from src.analyst.db_tool import search_web
 from config import GEMINI_MODEL
@@ -33,11 +34,12 @@ ANALYST_TOOLS = [
     get_research_notes,
     get_open_position_detail,
     get_position_history,
-    execute_read_only_query,
     search_web,
     get_macro_snapshot,
     get_breadth,
     get_earnings_calendar,
+    get_sector_peers,
+    get_sector_relative_strength,
 ]
 
 
@@ -74,6 +76,9 @@ class GeminiAnalyst:
             system_instruction=SYSTEM_PROMPT,
             temperature=1.0,
             tools=ANALYST_TOOLS,
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(
+                maximum_remote_calls=500
+            )
         )
         print("Creating chat session for memo...")
         chat = self.client.chats.create(
