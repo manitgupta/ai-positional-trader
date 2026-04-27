@@ -62,6 +62,10 @@ def evaluate_candidate(state: CandidateState):
     General Context:
     {context}
     
+    Check if {candidate} is in the "Open positions" list in the General Context.
+    - If it IS an open position, analyze it to determine if the thesis is intact and if you should HOLD, EXIT, or TRAIL_STOP. Call `get_open_position_detail("{candidate}")` to get current position info.
+    - If it is NOT an open position, analyze it as a potential new opportunity or watchlist item.
+    
     Please analyze {candidate} following the mandatory steps and output the JSON evaluation.
     """
     
@@ -150,9 +154,16 @@ def synthesize_memo(state: OverallState):
         temperature=0.7,
     )
     
+    # Fetch open positions to pass to synthesizer
+    context_builder = ContextBuilder(DB_PATH)
+    open_positions_text = context_builder._open_positions()
+    
     prompt = f"""
     Here is the Macro Snapshot for the market:
     {macro_snapshot}
+    
+    Here are the current Open Positions (symbol + entry info):
+    {open_positions_text}
     
     Here are the detailed evaluations provided by the analysts:
     {json.dumps(evaluations, indent=2)}
@@ -160,7 +171,10 @@ def synthesize_memo(state: OverallState):
     Here is the final selection and justification from the Critic/Selector:
     {json.dumps(selected_candidates, indent=2)}
     
-    Please synthesize these into the final research memo in the requested format. Use the full evaluations to write detailed theses for the selected candidates. Ensure you reference the Macro Snapshot where relevant to contextualize the environment.
+    Please synthesize these into the final research memo in the requested format. 
+    Ensure that ALL Open Positions listed above are reviewed in SECTION 1 (Portfolio Review), utilizing the evaluations if available.
+    Use the full evaluations to write detailed theses for the selected candidates in SECTION 2.
+    Ensure you reference the Macro Snapshot where relevant to contextualize the environment.
     """
     
     try:
