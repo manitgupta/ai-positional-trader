@@ -90,6 +90,26 @@ class SignalComputer:
         df['vol_sma_20'] = ta.sma(df['volume'], length=20)
         df['volume_ratio_20d'] = df['volume'] / df['vol_sma_20']
         
+        # Bollinger Bands Width
+        bb = ta.bbands(df['close'], length=20, std=2)
+        if bb is not None:
+            bbb_col = [c for c in bb.columns if 'BBB' in c]
+            if bbb_col:
+                df['bb_width'] = bb[bbb_col[0]]
+            else:
+                df['bb_width'] = None
+        else:
+            df['bb_width'] = None
+            
+        # Daily RS vs Nifty
+        nifty_df = self.load_prices("^NSEI")
+        if not nifty_df.empty:
+            nifty_df = nifty_df.set_index(pd.to_datetime(nifty_df['date']))
+            rs_ratio = df['close'] / nifty_df['close']
+            df['daily_rs'] = ta.sma(rs_ratio, length=20) # 20-day smoothed ratio
+        else:
+            df['daily_rs'] = None
+            
         # Calculate 12 month momentum for RS Rank
         df['close_shift_252'] = df['close'].shift(252)
         df['close_shift_252'] = df['close_shift_252'].fillna(df['close'].iloc[0])
@@ -103,7 +123,8 @@ class SignalComputer:
         # Select columns matching schema
         result_df = df[['symbol', 'date', 'rsi_14', 'adx_14', 'atr_14', 'macd_hist', 
                         'sma_50', 'sma_150', 'sma_200', 'above_200ma', 'rs_rank', 
-                        'raw_momentum_12m', 'pct_from_52w_high', 'volume_ratio_20d']]
+                        'raw_momentum_12m', 'pct_from_52w_high', 'volume_ratio_20d',
+                        'bb_width', 'daily_rs']]
         
         # Drop rows where critical signals are NaN (e.g. due to MA lag)
         result_df = result_df.dropna(subset=['sma_200'])
@@ -123,7 +144,8 @@ class SignalComputer:
                 INSERT OR IGNORE INTO signals 
                 SELECT symbol, date, rsi_14, adx_14, atr_14, macd_hist, 
                        sma_50, sma_150, sma_200, above_200ma, rs_rank, 
-                       raw_momentum_12m, pct_from_52w_high, volume_ratio_20d 
+                       raw_momentum_12m, pct_from_52w_high, volume_ratio_20d,
+                       bb_width, daily_rs
                 FROM df_view
             """)
             print(f"Saved {len(df)} signal rows to DB.")

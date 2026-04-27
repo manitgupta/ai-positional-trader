@@ -240,7 +240,7 @@ def get_price_history(symbol: str, days: int = 30) -> str:
     """
     Daily price + technical signals for `symbol`, most recent `days` trading days.
     Columns: date, close, volume, rsi_14, adx_14, atr_14, macd_hist, sma_50,
-    sma_150, sma_200, rs_rank, pct_from_52w_high, volume_ratio_20d.
+    sma_150, sma_200, rs_rank, pct_from_52w_high, volume_ratio_20d, bb_width, daily_rs.
     Use to read the daily setup: base, breakout, volume pattern, MA stack.
     Note: rs_rank is only authoritative on the latest row; older rows show 50.
 
@@ -255,7 +255,8 @@ def get_price_history(symbol: str, days: int = 30) -> str:
             SELECT s.date, p.close, p.volume,
                    s.rsi_14, s.adx_14, s.atr_14, s.macd_hist,
                    s.sma_50, s.sma_150, s.sma_200,
-                   s.rs_rank, s.pct_from_52w_high, s.volume_ratio_20d
+                   s.rs_rank, s.pct_from_52w_high, s.volume_ratio_20d,
+                   s.bb_width, s.daily_rs
             FROM signals s
             JOIN prices p ON s.symbol = p.symbol AND s.date = p.date
             WHERE s.symbol = ?
@@ -267,8 +268,9 @@ def get_price_history(symbol: str, days: int = 30) -> str:
 
 def get_weekly_history(symbol: str, weeks: int = 10) -> str:
     """
-    Weekly OHLCV candles for `symbol`. Use to confirm weekly Stage-2:
-    higher highs/lows, up-week volume expansion.
+    Weekly OHLCV candles + technical signals for `symbol`. Use to confirm weekly Stage-2:
+    higher highs/lows, up-week volume expansion, and relative strength.
+    Columns: date, open, high, low, close, volume, sma_10, sma_30, rsi_14, volume_ratio_10w, mansfield_rs.
 
     Args:
         symbol: NSE ticker without suffix.
@@ -278,9 +280,12 @@ def get_weekly_history(symbol: str, weeks: int = 10) -> str:
     weeks = max(1, min(int(weeks), 550))
     with duckdb.connect(DB_PATH) as c:
         df = c.execute(f"""
-            SELECT date, open, high, low, close, volume
-            FROM weekly_prices WHERE symbol = ?
-            ORDER BY date DESC LIMIT {weeks}
+            SELECT p.date, p.open, p.high, p.low, p.close, p.volume,
+                   s.sma_10, s.sma_30, s.rsi_14, s.volume_ratio_10w, s.mansfield_rs
+            FROM weekly_prices p
+            LEFT JOIN weekly_signals s ON p.symbol = s.symbol AND p.date = s.date
+            WHERE p.symbol = ?
+            ORDER BY p.date DESC LIMIT {weeks}
         """, (symbol,)).fetchdf()
     return f"--- {symbol} weekly, last {len(df)} weeks ---\n{_fmt(df, 'no weekly data')}"
 

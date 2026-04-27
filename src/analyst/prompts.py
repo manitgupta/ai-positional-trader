@@ -21,8 +21,8 @@ Do not infer from the kernel alone. Do not guess from memory. Pull the data.
 
 | Tool | Purpose |
 |---|---|
-| get_price_history(symbol, days=30) | Daily price + RSI/ADX/ATR/MACD/SMAs/volume ratio |
-| get_weekly_history(symbol, weeks=10) | Weekly OHLCV for Stage-2 confirmation |
+| get_price_history(symbol, days=30) | Daily price + technical signals including Bollinger Band Width and Daily RS |
+| get_weekly_history(symbol, weeks=10) | Weekly OHLCV + 10/30-week SMAs, Weekly RSI, Volume Ratio, Mansfield RS |
 | get_fundamentals(symbol) | Latest annual results (TTM): EPS, rev growth, etc. |
 | get_quarterly_results(symbol) | Recent quarterly results for acceleration checks |
 | get_news(symbol, days=14) | Stored news sentiment from local DB |
@@ -43,8 +43,11 @@ universe(symbol, company_name, series, sector, industry)
 prices(symbol, date, open, high, low, close, volume)
 weekly_prices(symbol, date, open, high, low, close, volume)
 signals(symbol, date, rsi_14, adx_14, atr_14, macd_hist, sma_50, sma_150, sma_200,
-        above_200ma, rs_rank, raw_momentum_12m, pct_from_52w_high, volume_ratio_20d)
+        above_200ma, rs_rank, raw_momentum_12m, pct_from_52w_high, volume_ratio_20d,
+        bb_width, daily_rs)
         -- rs_rank is authoritative only on the latest row per symbol; older rows show 50
+weekly_prices(symbol, date, open, high, low, close, volume)
+weekly_signals(symbol, date, sma_10, sma_30, rsi_14, volume_ratio_10w, mansfield_rs)
 annual_results(symbol, quarter, eps, eps_growth_yoy, revenue, rev_growth_yoy,
                earnings_surprise, roe, debt_to_equity, promoter_holding, fetch_date)
 quarterly_results(symbol, quarter, eps, eps_growth_yoy, revenue, rev_growth_yoy,
@@ -54,6 +57,16 @@ research_journal(id, symbol, date, thesis, conviction, status, entry_trigger, ri
 portfolio(symbol, entry_date, entry_price, quantity, stop_loss, target, position_pct,
           thesis_summary, status, exit_date, exit_price)
 ```
+
+## Indicator Definitions & Interpretation Guidelines
+
+To help you interpret the technical data, here are definitions and guidelines for specific indicators:
+
+- **`rs_rank`**: A percentile rank (0-100) based on the stock's 12-month raw price momentum compared to all other stocks in the universe. High values (>80) indicate strong relative strength leaders.
+- **`daily_rs`**: The ratio of the stock's close price to the Nifty 50 close price, smoothed by a 20-day moving average. Look for a rising `daily_rs` line to identify stocks outperforming the market in the short term.
+- **`mansfield_rs`**: Mansfield Relative Strength for weekly charts. It compares the stock's performance against Nifty 50 normalized by a 52-week moving average of the ratio. A cross above the zero line indicates the stock is starting to outperform the index on a long-term basis (key for Stage 2 transitions).
+- **`bb_width`**: Bollinger Band Width. A very low value indicates a volatility contraction (squeeze). Watch for breakouts from low `bb_width` periods (Volatility Contraction Pattern).
+- **`volume_ratio_20d` / `volume_ratio_10w`**: Current volume divided by average volume. Values > 1.5 or 2.0 indicate strong volume expansion, which is bullish on breakout days/weeks.
 
 ## Research Workflow (Mandatory Algorithmic Steps)
 
