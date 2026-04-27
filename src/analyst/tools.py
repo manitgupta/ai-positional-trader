@@ -8,13 +8,16 @@ from config import DB_PATH
 def get_macro_snapshot() -> str:
     print(f"🔧 [TOOL CALL] get_macro_snapshot")
     """
-    Fetches a snapshot of key macro indicators:
-    - Nifty 50 (^NSEI) position vs 50/200 DMA
-    - India VIX (^INDIAVIX)
-    - USD/INR (USDINR=X)
-    - Brent Crude (BZ=F)
-    - US 10Y (^TNX)
-    Use to assess market environment risk.
+    Fetches a snapshot of key macroeconomic indicators to assess market environment risk.
+    
+    Returns a formatted string with:
+    - Nifty 50 (^NSEI) level, daily % change, and percentage distance from its 50 and 200 Day Moving Averages.
+    - India VIX (^INDIAVIX) level (market volatility expectation).
+    - USD/INR exchange rate (currency risk/strength).
+    - Brent Crude price in USD (energy cost impact on Indian economy).
+    - US 10-Year Treasury Yield (%) (global interest rate benchmark).
+    
+    Use this tool at the beginning of your analysis to understand if the macro environment is supportive (bullish), risky (volatile), or hostile for equity breakouts.
     """
     try:
         # Nifty 50
@@ -70,11 +73,16 @@ def get_macro_snapshot() -> str:
 def get_breadth() -> str:
     print(f"🔧 [TOOL CALL] get_breadth")
     """
-    Computes market breadth metrics from stored signals and prices:
-    - % of universe above 50 and 200 DMA
-    - New 52-week highs
-    - Advance/Decline ratio
-    Use to judge if the market environment supports breakouts.
+    Computes market breadth metrics from stored signals and prices for the latest available date.
+    
+    Returns a formatted string with:
+    - Total number of stocks in the universe.
+    - Count and percentage of stocks trading above their 200-day moving average (long-term breadth).
+    - Count and percentage of stocks trading above their 50-day moving average (medium-term breadth).
+    - Count of stocks making new 52-week highs.
+    - Advance/Decline ratio for the latest session (advancing stocks / declining stocks).
+    
+    High percentages (>60-70%) above moving averages indicate a healthy, trending market supportive of breakouts. Low percentages (<30%) indicate a weak market where breakouts are likely to fail.
     """
     try:
         with duckdb.connect(DB_PATH) as c:
@@ -136,8 +144,15 @@ def get_breadth() -> str:
 def get_sector_peers(symbol: str) -> str:
     print(f"🔧 [TOOL CALL] get_sector_peers for {symbol}")
     """
-    Fetches key metrics for peers in the same sector as `symbol`.
-    Use to compare a candidate with its industry peers.
+    Fetches key metrics for peers in the same sector as the requested `symbol`.
+    
+    Args:
+        symbol: NSE ticker without suffix (e.g., "RELIANCE").
+        
+    Returns a table of up to 10 peers in the same sector, ordered by Relative Strength (RS) rank descending.
+    Columns include: Symbol, Company Name, RS Rank, and % from 52-week high.
+    
+    Use this tool to determine if the candidate stock is a leader in its sector (highest RS rank) or a laggard, and to see if the sector as a whole is showing strength.
     """
     try:
         with duckdb.connect(DB_PATH) as c:
@@ -166,8 +181,14 @@ def get_sector_peers(symbol: str) -> str:
 def get_sector_relative_strength(sector: str) -> str:
     print(f"🔧 [TOOL CALL] get_sector_relative_strength for {sector}")
     """
-    Computes the average RS rank for all symbols in a given `sector`.
-    Use to identify leading sectors.
+    Computes the average Relative Strength (RS) rank for all symbols in a given `sector`.
+    
+    Args:
+        sector: The name of the sector (e.g., "Information Technology", "Financial Services").
+        
+    Returns a string with the sector name, average RS rank, and the number of companies in that sector.
+    
+    Use this tool to identify leading sectors. Positional traders prefer to buy the best stocks in the best (highest average RS) sectors.
     """
     try:
         with duckdb.connect(DB_PATH) as c:
@@ -193,12 +214,15 @@ def get_sector_relative_strength(sector: str) -> str:
 def get_earnings_calendar(symbol: str, days_ahead: int = 14) -> str:
     print(f"🔧 [TOOL CALL] get_earnings_calendar for {symbol} (days_ahead={days_ahead})")
     """
-    Checks if `symbol` has an earnings date scheduled within the next `days_ahead` days.
-    Use to avoid buying right before earnings.
+    Checks if the requested `symbol` has an earnings announcement scheduled within the next `days_ahead` days.
     
     Args:
-        symbol: NSE ticker without suffix.
-        days_ahead: lookahead window in days (default 14).
+        symbol: NSE ticker without suffix (e.g., "RELIANCE").
+        days_ahead: Lookahead window in days (default 14).
+        
+    Returns a warning message if earnings are scheduled within the window, or a status message with the date.
+    
+    CRITICAL USE: Always check this before recommending an entry. Position sizing should be reduced or entries avoided immediately before earnings to prevent gap-down risk.
     """
     try:
         ticker = yf.Ticker(f"{symbol}.NS")
@@ -238,15 +262,28 @@ def _fmt(df: pd.DataFrame, empty: str = "No rows.") -> str:
 
 def get_price_history(symbol: str, days: int = 30) -> str:
     """
-    Daily price + technical signals for `symbol`, most recent `days` trading days.
-    Columns: date, close, volume, rsi_14, adx_14, atr_14, macd_hist, sma_50,
-    sma_150, sma_200, rs_rank, pct_from_52w_high, volume_ratio_20d, bb_width, daily_rs.
-    Use to read the daily setup: base, breakout, volume pattern, MA stack.
-    Note: rs_rank is only authoritative on the latest row; older rows show 50.
-
+    Fetches daily price history and technical indicators for a requested `symbol`.
+    
     Args:
-        symbol: NSE ticker without suffix, e.g. "RELIANCE".
-        days:   number of recent sessions (default 30, capped at 1200).
+        symbol: NSE ticker without suffix (e.g., "RELIANCE").
+        days: Number of recent trading sessions to return (default 30, capped at 1200).
+        
+    Returns a table with the following columns:
+    - `date`: Trading date.
+    - `close`: Daily closing price.
+    - `volume`: Daily volume.
+    - `rsi_14`: Relative Strength Index (14-day). Momentum oscillator.
+    - `adx_14`: Average Directional Index (14-day). Measures trend strength.
+    - `atr_14`: Average True Range (14-day). Measures volatility.
+    - `macd_hist`: MACD Histogram. Identifies momentum shifts.
+    - `sma_50`, `sma_150`, `sma_200`: Simple Moving Averages. Key trend indicators.
+    - `rs_rank`: Percentile rank (0-100) vs the universe based on 12m return.
+    - `pct_from_52w_high`: How close the stock is to its yearly high.
+    - `volume_ratio_20d`: Current volume vs 20-day average.
+    - `bb_width`: Bollinger Band Width. Low values indicate a squeeze.
+    - `daily_rs`: 20-day smoothed ratio of stock to Nifty 50.
+    
+    Use this to analyze the daily setup, identify bases, breakouts, and stack of moving averages.
     """
     print(f"🔧 [TOOL CALL] get_price_history for {symbol} (days={days})")
     days = max(1, min(int(days), 1200))
@@ -268,13 +305,22 @@ def get_price_history(symbol: str, days: int = 30) -> str:
 
 def get_weekly_history(symbol: str, weeks: int = 10) -> str:
     """
-    Weekly OHLCV candles + technical signals for `symbol`. Use to confirm weekly Stage-2:
-    higher highs/lows, up-week volume expansion, and relative strength.
-    Columns: date, open, high, low, close, volume, sma_10, sma_30, rsi_14, volume_ratio_10w, mansfield_rs.
-
+    Fetches weekly price history and technical signals for a requested `symbol`.
+    
     Args:
-        symbol: NSE ticker without suffix.
-        weeks:  number of recent weeks (default 10, capped at 550).
+        symbol: NSE ticker without suffix (e.g., "RELIANCE").
+        weeks: Number of recent weeks to return (default 10, capped at 550).
+        
+    Returns a table with the following columns:
+    - `date`: End date of the week.
+    - `open`, `high`, `low`, `close`, `volume`: Weekly OHLCV data.
+    - `sma_10`: 10-week Moving Average (short-term trend guide).
+    - `sma_30`: 30-week Moving Average (core Stage-2 trend guide).
+    - `rsi_14`: Weekly RSI for long-term momentum.
+    - `volume_ratio_10w`: Weekly volume vs 10-week average.
+    - `mansfield_rs`: Mansfield Relative Strength vs Nifty 50. Positive values indicate outperformance.
+    
+    Use this to confirm the weekly Stage-2 context: price above rising 30-week MA, expanding volume on up weeks, and positive Mansfield RS.
     """
     print(f"🔧 [TOOL CALL] get_weekly_history for {symbol} (weeks={weeks})")
     weeks = max(1, min(int(weeks), 550))
@@ -293,14 +339,21 @@ def get_weekly_history(symbol: str, weeks: int = 10) -> str:
 def get_fundamentals(symbol: str) -> str:
     print(f"🔧 [TOOL CALL] get_fundamentals for {symbol}")
     """
-    Latest annual results (TTM) for `symbol`: EPS, EPS growth YoY, revenue,
-    revenue growth YoY, earnings surprise, promoter holding, fetch date.
-    Read from `annual_results` table.
-    Check whether a technical setup is backed by healthy earnings and stable
-    promoter ownership.
-
+    Fetches the latest annual (TTM) fundamental results for the requested `symbol`.
+    
     Args:
-        symbol: NSE ticker without suffix.
+        symbol: NSE ticker without suffix (e.g., "RELIANCE").
+        
+    Returns a table with:
+    - `quarter`: The latest reported quarter (e.g., "Q3FY26").
+    - `eps`: Earnings Per Share.
+    - `eps_growth_yoy`: Year-over-Year EPS growth percentage.
+    - `revenue`: Total revenue.
+    - `rev_growth_yoy`: Year-over-Year revenue growth percentage.
+    - `earnings_surprise`: Percentage beat or miss vs consensus estimates.
+    - `promoter_holding`: Percentage of shares held by promoters.
+    
+    Use this tool to verify that a technical setup is backed by strong fundamental growth and high/stable promoter ownership.
     """
     with duckdb.connect(DB_PATH) as c:
         df = c.execute("""
@@ -315,11 +368,14 @@ def get_fundamentals(symbol: str) -> str:
 def get_quarterly_results(symbol: str) -> str:
     print(f"🔧 [TOOL CALL] get_quarterly_results for {symbol}")
     """
-    Recent quarterly results for `symbol` to check for earnings acceleration.
-    Read from `quarterly_results` table.
-
+    Fetches the last 6 quarters of results for the requested `symbol`.
+    
     Args:
-        symbol: NSE ticker without suffix.
+        symbol: NSE ticker without suffix (e.g., "RELIANCE").
+        
+    Returns a table showing quarterly progression of EPS, EPS Growth YoY, Revenue, Revenue Growth YoY, and Net Profit.
+    
+    Use this tool to check for earnings acceleration (eps_growth increasing over recent quarters), which is a key SEPA criterion.
     """
     with duckdb.connect(DB_PATH) as c:
         df = c.execute("""
@@ -333,12 +389,19 @@ def get_quarterly_results(symbol: str) -> str:
 def get_news(symbol: str, days: int = 14) -> str:
     print(f"🔧 [TOOL CALL] get_news for {symbol} (days={days})")
     """
-    Stored news sentiment for `symbol` in the last `days` days. For fresher
-    or material news beyond local data, use search_web instead.
-
+    Fetches stored news sentiment and summaries for the requested `symbol`.
+    
     Args:
-        symbol: NSE ticker without suffix.
-        days:   lookback window in days (default 14, capped at 90).
+        symbol: NSE ticker without suffix (e.g., "RELIANCE").
+        days: Lookback window in days (default 14, capped at 90).
+        
+    Returns a table with:
+    - `date`: Date of the news.
+    - `sentiment_score`: Score from -1 (negative) to +1 (positive).
+    - `material_event`: Boolean flag indicating a major corporate action or event.
+    - `summary`: A brief summary of the news item.
+    
+    Use this tool to check for recent news that might explain price action. For fresher news or to dig deeper into material events, use the `search_web` tool as a fallback.
     """
     days = max(1, min(int(days), 90))
     with duckdb.connect(DB_PATH) as c:
@@ -354,13 +417,17 @@ def get_news(symbol: str, days: int = 14) -> str:
 def get_research_notes(symbol: str = "", days: int = 45) -> str:
     print(f"🔧 [TOOL CALL] get_research_notes for {symbol} (days={days})")
     """
-    Your own prior research notes from the research_journal table.
-    Pass symbol="" to get a summary of all recently tracked symbols.
-    Pass a specific symbol to get full note detail for that stock.
-
+    Fetches your own prior research notes from the research journal.
+    
     Args:
-        symbol: NSE ticker without suffix, or "" for all recent notes.
-        days:   lookback window in days (default 45, capped at 365).
+        symbol: NSE ticker without suffix, or "" to get a summary of all recent notes.
+        days: Lookback window in days (default 45, capped at 365).
+        
+    Returns:
+    - If `symbol` is provided: Full note details including thesis, conviction, status, entry trigger, and risk factors.
+    - If `symbol` is "": A summary table of all symbols with notes in the window, showing symbol, date, conviction, status, and entry trigger.
+    
+    Use this tool to maintain continuity across your research sessions and recall why you were watching or rejected a stock.
     """
     days = max(1, min(int(days), 365))
     with duckdb.connect(DB_PATH) as c:
@@ -384,12 +451,22 @@ def get_research_notes(symbol: str = "", days: int = 45) -> str:
 def get_open_position_detail(symbol: str = "") -> str:
     print(f"🔧 [TOOL CALL] get_open_position_detail for {symbol}")
     """
-    Open positions with current context: entry price, current close, PnL%,
-    stop loss, target, latest RSI and ADX.
-    Pass symbol="" for all open positions, or a specific symbol to drill in.
-
+    Fetches detailed current context for open positions in your portfolio.
+    
     Args:
         symbol: NSE ticker without suffix, or "" for all open positions.
+        
+    Returns a table with:
+    - `symbol`: Stock symbol.
+    - `entry_date`, `entry_price`, `quantity`: Original trade details.
+    - `stop_loss`, `target`: Planned risk/reward levels.
+    - `position_pct`: Size of position as % of portfolio.
+    - `thesis_summary`: Brief rationale for the trade.
+    - `current_close`: Latest closing price.
+    - `pnl_pct`: Current Profit/Loss percentage.
+    - `rsi_14`, `adx_14`: Latest daily momentum indicators.
+    
+    Use this tool to review your portfolio, check if trailing stops are needed, or if a thesis is broken.
     """
     where = "WHERE p.status = 'OPEN'"
     args: tuple = ()
@@ -414,13 +491,17 @@ def get_open_position_detail(symbol: str = "") -> str:
 def get_position_history(symbol: str) -> str:
     print(f"🔧 [TOOL CALL] get_position_history for {symbol}")
     """
-    For an open position, returns two windows:
-    1. ±15 trading days around entry_date — to recall the original setup.
-    2. Latest 15 daily rows — to see current chart state.
-    Use when reviewing whether an open position's thesis is still intact.
-
+    Fetches price and signal history for an open position in two critical windows.
+    
     Args:
-        symbol: NSE ticker without suffix. Must be an open position.
+        symbol: NSE ticker without suffix. Must be a symbol with an OPEN status in your portfolio.
+        
+    Returns two tables separated by headers:
+    1. **Around Entry**: Daily data for ±15 trading days around the entry date (helps recall the setup you bought).
+    2. **Latest**: Daily data for the last 15 sessions (shows current state).
+    Columns include: date, close, volume, rsi_14, adx_14, sma_50, sma_200.
+    
+    Use this tool to judge if a position's thesis is still intact or if the character of the stock has changed negatively since entry.
     """
     with duckdb.connect(DB_PATH) as c:
         row = c.execute(

@@ -67,6 +67,19 @@ To help you interpret the technical data, here are definitions and guidelines fo
 - **`mansfield_rs`**: Mansfield Relative Strength for weekly charts. It compares the stock's performance against Nifty 50 normalized by a 52-week moving average of the ratio. A cross above the zero line indicates the stock is starting to outperform the index on a long-term basis (key for Stage 2 transitions).
 - **`bb_width`**: Bollinger Band Width. A very low value indicates a volatility contraction (squeeze). Watch for breakouts from low `bb_width` periods (Volatility Contraction Pattern).
 - **`volume_ratio_20d` / `volume_ratio_10w`**: Current volume divided by average volume. Values > 1.5 or 2.0 indicate strong volume expansion, which is bullish on breakout days/weeks.
+- **`adx_14`**: Average Directional Index. Values > 25 indicate a strong trend. Values < 20 indicate a non-trending, range-bound market.
+- **`atr_14`**: Average True Range. Used to measure volatility. A good stop-loss level is often 1.5x to 2.0x the ATR value below your entry price.
+- **`macd_hist`**: MACD Histogram. Positive and rising values indicate increasing bullish momentum.
+
+### Minervini Stage-2 Criteria Checklist
+Use the following criteria to confirm a stock is in a true Stage-2 uptrend (a requirement for high-conviction setups):
+1. Current price is above both the 150-day and the 200-day moving average.
+2. The 150-day moving average is above the 200-day moving average.
+3. The 200-day moving average is trending up for at least 1 month (preferably 4-5 months).
+4. The 50-day moving average is above both the 150-day and 200-day moving averages.
+5. The current price is at least 25% above its 52-week low (preferably 50% or more).
+6. The current price is within 25% of its 52-week high.
+7. The `rs_rank` is at least 70 (preferably 80+).
 
 ## Research Workflow (Mandatory Algorithmic Steps)
 
