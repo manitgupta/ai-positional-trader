@@ -36,19 +36,31 @@ def push_to_motherduck():
         
     print(f"Pushing data from {LOCAL_DB_PATH} to MotherDuck...")
     try:
-        # Create database if not exists in MotherDuck
-        conn.execute(f"CREATE DATABASE IF NOT EXISTS {MD_DB_NAME}")
+        # Drop database if exists to start fresh with correct schema
+        print(f"Recreating database {MD_DB_NAME} on MotherDuck...")
+        conn.execute(f"DROP DATABASE IF EXISTS {MD_DB_NAME} CASCADE")
+        conn.execute(f"CREATE DATABASE {MD_DB_NAME}")
+        conn.execute(f"USE {MD_DB_NAME}")
+        
+        # Apply schema
+        print("Applying schema to MotherDuck...")
+        with open(os.path.join(base_dir, "data", "schema.sql"), "r") as f:
+            schema_sql = f.read()
+        conn.execute(schema_sql)
         
         # Attach local DB
         conn.execute(f"ATTACH '{LOCAL_DB_PATH}' AS local_db (TYPE DUCKDB)")
         
-        known_tables = ['universe', 'prices', 'weekly_prices', 'signals', 'annual_results', 'quarterly_results', 'news', 'research_journal', 'portfolio', 'account']
+        known_tables = ['universe', 'prices', 'weekly_prices', 'signals', 'weekly_signals', 'annual_results', 'quarterly_results', 'news', 'research_journal', 'portfolio', 'account']
         
         for table in known_tables:
             print(f"Syncing table {table} to MotherDuck...")
             try:
-                # Overwrite table on MotherDuck with local data
-                conn.execute(f"CREATE OR REPLACE TABLE {MD_DB_NAME}.{table} AS SELECT * FROM local_db.{table}")
+                # Copy data into the table created by schema
+                if table == 'account':
+                    conn.execute(f"INSERT OR REPLACE INTO {MD_DB_NAME}.{table} SELECT * FROM local_db.{table}")
+                else:
+                    conn.execute(f"INSERT INTO {MD_DB_NAME}.{table} SELECT * FROM local_db.{table}")
                 print(f"Success for {table}")
             except Exception as e:
                 print(f"Error syncing {table}: {e}")
@@ -69,16 +81,38 @@ def pull_from_motherduck():
         # Ensure directory exists
         os.makedirs(os.path.dirname(LOCAL_DB_PATH), exist_ok=True)
         
-        # Attach local DB (creates file if not exists)
+        # Attach local DB
         conn.execute(f"ATTACH '{LOCAL_DB_PATH}' AS local_db (TYPE DUCKDB)")
         
-        known_tables = ['universe', 'prices', 'weekly_prices', 'signals', 'annual_results', 'quarterly_results', 'news', 'research_journal', 'portfolio', 'account']
+        # Apply schema to local DB first
+        print("Applying schema to local DB...")
+        with open(os.path.join(base_dir, "data", "schema.sql"), "r") as f:
+            schema_sql = f.read()
+            
+        # We need to drop tables in local DB first to enforce schema
+        known_tables = ['universe', 'prices', 'weekly_prices', 'signals', 'weekly_signals', 'annual_results', 'quarterly_results', 'news', 'research_journal', 'portfolio', 'account']
+        
+        for table in known_tables:
+            try:
+                conn.execute(f"DROP TABLE IF EXISTS local_db.{table}")
+            except Exception as e:
+                print(f"Error dropping local table {table}: {e}")
+                
+        # Now run schema on local DB
+        modified_schema = schema_sql.replace("CREATE TABLE IF NOT EXISTS ", "CREATE TABLE IF NOT EXISTS local_db.")
+        modified_schema = modified_schema.replace("CREATE TABLE ", "CREATE TABLE local_db.")
+        modified_schema = modified_schema.replace("INSERT INTO account", "INSERT INTO local_db.account")
+        
+        conn.execute(modified_schema)
         
         for table in known_tables:
             print(f"Syncing table {table} from MotherDuck...")
             try:
-                # Overwrite local table with MotherDuck data
-                conn.execute(f"CREATE OR REPLACE TABLE local_db.{table} AS SELECT * FROM {MD_DB_NAME}.{table}")
+                # Copy data
+                if table == 'account':
+                    conn.execute(f"INSERT OR REPLACE INTO local_db.{table} SELECT * FROM {MD_DB_NAME}.{table}")
+                else:
+                    conn.execute(f"INSERT INTO local_db.{table} SELECT * FROM {MD_DB_NAME}.{table}")
                 print(f"Success for {table}")
             except Exception as e:
                 print(f"Error syncing {table}: {e}")

@@ -31,6 +31,18 @@ CREATE TABLE IF NOT EXISTS weekly_prices (
     PRIMARY KEY (symbol, date)
 );
 
+-- Weekly signals table
+CREATE TABLE IF NOT EXISTS weekly_signals (
+    symbol          VARCHAR,
+    date            DATE,
+    sma_10          DOUBLE,
+    sma_30          DOUBLE,
+    rsi_14          DOUBLE,
+    volume_ratio_10w DOUBLE,
+    mansfield_rs    DOUBLE,
+    PRIMARY KEY (symbol, date)
+);
+
 -- Derived technical signals (recomputed nightly)
 CREATE TABLE IF NOT EXISTS signals (
     symbol          VARCHAR,
@@ -47,22 +59,37 @@ CREATE TABLE IF NOT EXISTS signals (
     raw_momentum_12m DOUBLE,     -- 12 month raw percentage return
     pct_from_52w_high DOUBLE,
     volume_ratio_20d  DOUBLE,    -- today's vol / 20d avg
+    bb_width        DOUBLE,
+    daily_rs        DOUBLE,
     PRIMARY KEY (symbol, date)
 );
 
--- Quarterly fundamentals (updated on results season)
-CREATE TABLE IF NOT EXISTS fundamentals (
+-- Annual results
+CREATE TABLE IF NOT EXISTS annual_results (
     symbol          VARCHAR,
-    quarter         VARCHAR,     -- e.g. Q3FY25
+    quarter         VARCHAR,
     eps             DOUBLE,
     eps_growth_yoy  DOUBLE,
     revenue         DOUBLE,
     rev_growth_yoy  DOUBLE,
-    earnings_surprise DOUBLE,    -- % beat/miss vs estimate
+    earnings_surprise DOUBLE,
     roe             DOUBLE,
     debt_to_equity  DOUBLE,
     promoter_holding DOUBLE,
-    fetch_date      DATE,        -- date when fundamentals were last scraped
+    fetch_date      DATE,
+    PRIMARY KEY (symbol, quarter)
+);
+
+-- Quarterly results
+CREATE TABLE IF NOT EXISTS quarterly_results (
+    symbol          VARCHAR,
+    quarter         VARCHAR,
+    eps             DOUBLE,
+    eps_growth_yoy  DOUBLE,
+    revenue         DOUBLE,
+    rev_growth_yoy  DOUBLE,
+    net_profit      DOUBLE,
+    fetch_date      DATE,
     PRIMARY KEY (symbol, quarter)
 );
 
