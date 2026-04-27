@@ -48,6 +48,8 @@ def send_telegram_message(message):
             
         try:
             response = requests.post(url, json=payload)
+            if response.status_code != 200:
+                print(f"Telegram API error: {response.status_code} - {response.text}")
             return response.status_code == 200
         except Exception as e:
             print(f"Error sending Telegram chunk: {e}")

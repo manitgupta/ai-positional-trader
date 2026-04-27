@@ -100,9 +100,15 @@ class PriceFetcher:
         try:
             conn.register('df_view', df)
             conn.execute("""
-                INSERT OR REPLACE INTO prices 
+                INSERT INTO prices 
                 SELECT symbol, date, open, high, low, close, volume 
                 FROM df_view
+                ON CONFLICT(symbol, date) DO UPDATE SET 
+                    open = excluded.open,
+                    high = excluded.high,
+                    low = excluded.low,
+                    close = excluded.close,
+                    volume = excluded.volume
             """)
             print(f"Saved {len(df)} incremental rows to DB.")
         except Exception as e:

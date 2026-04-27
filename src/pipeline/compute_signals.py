@@ -141,12 +141,13 @@ class SignalComputer:
         try:
             conn.register('df_view', df)
             conn.execute("""
-                INSERT OR IGNORE INTO signals 
+                INSERT INTO signals 
                 SELECT symbol, date, rsi_14, adx_14, atr_14, macd_hist, 
                        sma_50, sma_150, sma_200, above_200ma, rs_rank, 
                        raw_momentum_12m, pct_from_52w_high, volume_ratio_20d,
                        bb_width, daily_rs
                 FROM df_view
+                ON CONFLICT(symbol, date) DO NOTHING
             """)
             print(f"Saved {len(df)} signal rows to DB.")
         except Exception as e:
