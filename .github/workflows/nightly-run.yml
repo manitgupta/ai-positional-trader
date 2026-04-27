@@ -2,8 +2,8 @@ name: Nightly Positional Trading Scan
 
 on:
   schedule:
-    # Runs at 19:00 IST (13:30 UTC), Monday through Friday
-    - cron: '30 13 * * 1-5'
+    # Runs at 18:37 IST (13:07 UTC), Monday through Friday
+    - cron: '37 12 * * 1-5'
   workflow_dispatch: # Allows manual triggering from GitHub UI
 
 jobs:
