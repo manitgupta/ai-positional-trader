@@ -93,6 +93,6 @@ Use get_research_notes(symbol) to pull full note detail for any of these.
 
 ## Today's screener candidates (ranked by composite score, top-line metrics only)
 {cand_text}
-Use get_price_history(), get_weekly_history(), get_fundamentals() to research any candidate.
+Use get_price_history(), get_weekly_history(), get_annual_fundamentals(), get_quarterly_fundamentals() to research any candidate.
 
 Do not reason from memory or assumptions. Fetch data with tools before forming a view."""

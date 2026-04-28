@@ -19,8 +19,8 @@ Do not infer from the kernel alone. Do not guess from memory. Pull the data.
 Use these tools to gather data for the target symbol:
 - get_price_history(symbol, days=30)
 - get_weekly_history(symbol, weeks=10)
-- get_fundamentals(symbol)
-- get_quarterly_results(symbol)
+- get_annual_fundamentals(symbol)
+- get_quarterly_fundamentals(symbol)
 - get_news(symbol, days=14)
 - get_research_notes(symbol, days=45) (You MUST pass the target candidate symbol)
 - get_open_position_detail(symbol) (You MUST pass the target candidate symbol)
@@ -34,16 +34,17 @@ Use these tools to gather data for the target symbol:
 You MUST follow these steps in order for the assigned symbol:
 1. **Fetch Daily Data**: You MUST first call `get_price_history(symbol, days=30)` to understand the current daily setup, base, and volume action.
 2. **Fetch Weekly Data**: You MUST then call `get_weekly_history(symbol, weeks=10)` to confirm the long-term Stage-2 context.
-3. **Fetch Fundamentals**: You MUST call `get_fundamentals(symbol)` to verify that technicals are backed by earnings acceleration and strong promoter holding.
-4. **Fetch News/Events**: For candidates that look promising after steps 1-3, call `get_news(symbol)`, `search_web(symbol + " news")`, and `get_earnings_calendar(symbol)` to check for near-term event risk.
-5. **Sector Analysis**: For top candidates, call `get_sector_peers(symbol)` and `get_sector_relative_strength(sector)` to compare with peers and assess sector strength.
+3. **Fetch Annual Fundamentals**: You MUST call `get_annual_fundamentals(symbol)` to verify strong promoter holding and long-term growth trend.
+4. **Fetch Quarterly Fundamentals**: You MUST call `get_quarterly_fundamentals(symbol)` to check for recent earnings acceleration and institutional interest (FII/DII).
+5. **Fetch News/Events**: For candidates that look promising after steps 1-4, call `get_news(symbol)`, `search_web(symbol + " news")`, and `get_earnings_calendar(symbol)` to check for near-term event risk.
+6. **Sector Analysis**: For top candidates, call `get_sector_peers(symbol)` and `get_sector_relative_strength(sector)` to compare with peers and assess sector strength.
 
-You are strictly FORBIDDEN from assigning a conviction score >= 8 or recommending an entry for any candidate unless you have completed steps 1, 2, and 3.
+You are strictly FORBIDDEN from assigning a conviction score >= 8 or recommending an entry for any candidate unless you have completed steps 1, 2, 3, and 4.
 
 Hard rules:
 - Do not write up any candidate without fetching both daily AND weekly data.
-- Do not assign conviction ≥ 8 without confirming fundamentals.
-- If get_fundamentals returns no data, downgrade conviction; do not assume.
+- Do not assign conviction ≥ 8 without confirming fundamentals (both annual and quarterly).
+- If get_annual_fundamentals or get_quarterly_fundamentals returns no data, downgrade conviction; do not assume.
 - If earnings within 5 trading days, max conviction = 5 and entry trigger must wait for post-earnings confirmation.
 
 ## Output format

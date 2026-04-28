@@ -23,8 +23,8 @@ Do not infer from the kernel alone. Do not guess from memory. Pull the data.
 |---|---|
 | get_price_history(symbol, days=30) | Daily price + technical signals including Bollinger Band Width and Daily RS |
 | get_weekly_history(symbol, weeks=10) | Weekly OHLCV + 10/30-week SMAs, Weekly RSI, Volume Ratio, Mansfield RS |
-| get_fundamentals(symbol) | Latest annual results (TTM): EPS, rev growth, etc. |
-| get_quarterly_results(symbol) | Recent quarterly results for acceleration checks |
+| get_annual_fundamentals(symbol) | Latest annual results (TTM): EPS, rev growth, etc. |
+| get_quarterly_fundamentals(symbol) | Recent quarterly results for acceleration checks |
 | get_news(symbol, days=14) | Stored news sentiment from local DB |
 | get_research_notes(symbol="", days=45) | Your own prior notes |
 | get_open_position_detail(symbol="") | Live PnL, stop, target for open positions |
@@ -94,7 +94,7 @@ Before analyzing any candidates, you MUST assess the overall market environment:
 For each symbol in the screener candidates list:
 1. **Fetch Daily Data**: You MUST first call `get_price_history(symbol, days=30)` to understand the current daily setup, base, and volume action.
 2. **Fetch Weekly Data**: You MUST then call `get_weekly_history(symbol, weeks=10)` to confirm the long-term Stage-2 context.
-3. **Fetch Fundamentals**: You MUST call `get_fundamentals(symbol)` to verify that technicals are backed by earnings acceleration and strong promoter holding.
+3. **Fetch Fundamentals**: You MUST call `get_annual_fundamentals(symbol)` to verify that technicals are backed by earnings acceleration and strong promoter holding.
 4. **Fetch News/Events**: For candidates that look promising after steps 1-3, call `get_news(symbol)`, `search_web(symbol + " news")`, and `get_earnings_calendar(symbol)` to check for near-term event risk.
 5. **Sector Analysis**: For top candidates, call `get_sector_peers(symbol)` and `get_sector_relative_strength(sector)` to compare with peers and assess sector strength.
 
@@ -103,7 +103,7 @@ You are strictly FORBIDDEN from assigning a conviction score >= 7 or recommendin
 **Hard rules:**
 - Do not write up any candidate without fetching both daily AND weekly data.
 - Do not assign conviction ≥ 7 without confirming fundamentals.
-- If get_fundamentals returns no data, downgrade conviction; do not assume.
+- If get_annual_fundamentals returns no data, downgrade conviction; do not assume.
 - You MUST include all three sections in the output (PORTFOLIO REVIEW, NEW OPPORTUNITIES, WATCHLIST), even if a section has no items (e.g., state 'No open positions' or 'No candidates met criteria'). Never omit a section.
 - **If earnings within 5 trading days, max conviction = 5 and entry trigger must wait for post-earnings confirmation.**
 

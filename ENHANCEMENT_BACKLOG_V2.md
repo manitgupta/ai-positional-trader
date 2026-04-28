@@ -4,10 +4,8 @@ This document outlines strategic technical enhancements to improve the **accurac
 
 ---
 
-## 1. Technical Analysis & VCP Detection
-*   **[ ] True VCP Pattern Recognition**: Replace the simplistic `1 - (ATR/Close)` tightness score with a rolling window algorithm in `src/screener/scorer.py` that identifies a sequence of progressively narrowing price contractions (e.g., 20% -> 10% -> 4%) with volume dry-ups.
+## 1. Technical Analysis
 *   **[ ] Delivery Percentage Integration**: Fetch NSE Delivery Volume data. A high-volume breakout with >50% delivery indicates institutional accumulation and should increase the agent's conviction score.
-*   **[ ] Mean Reversion Risk Filter**: Calculate distance from the 50-DMA. Stocks >25% extended from the 50-DMA should be flagged as "Extended" and recommended for a "Watchlist" (waiting for a pullback) rather than an immediate "Entry."
 
 ## 2. Fundamental Depth & Smart Money
 *   **[ ] Expanded Fundamental Scraping**: Update `src/pipeline/fetch_fundamentals.py` to capture **ROE (Return on Equity)**, **Debt-to-Equity**, and **Promoter Holding changes**.

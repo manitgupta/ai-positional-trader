@@ -8,8 +8,8 @@ from src.analyst.prompts import SYSTEM_PROMPT
 from src.analyst.tools import (
     get_price_history,
     get_weekly_history,
-    get_fundamentals,
-    get_quarterly_results,
+    get_annual_fundamentals,
+    get_quarterly_fundamentals,
     get_news,
     get_research_notes,
     get_open_position_detail,
@@ -28,8 +28,8 @@ load_dotenv(override=True)
 ANALYST_TOOLS = [
     get_price_history,
     get_weekly_history,
-    get_fundamentals,
-    get_quarterly_results,
+    get_annual_fundamentals,
+    get_quarterly_fundamentals,
     get_news,
     get_research_notes,
     get_open_position_detail,

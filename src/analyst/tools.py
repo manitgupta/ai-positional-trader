@@ -336,50 +336,57 @@ def get_weekly_history(symbol: str, weeks: int = 10) -> str:
     return f"--- {symbol} weekly, last {len(df)} weeks ---\n{_fmt(df, 'no weekly data')}"
 
 
-def get_fundamentals(symbol: str) -> str:
-    print(f"🔧 [TOOL CALL] get_fundamentals for {symbol}")
+def get_annual_fundamentals(symbol: str) -> str:
+    print(f"🔧 [TOOL CALL] get_annual_fundamentals for {symbol}")
     """
-    Fetches the latest annual (TTM) fundamental results for the requested `symbol`.
+    Fetches the latest annual fundamental results and historical trend for the requested `symbol`.
     
     Args:
         symbol: NSE ticker without suffix (e.g., "RELIANCE").
         
     Returns a table with:
-    - `quarter`: The latest reported quarter (e.g., "Q3FY26").
+    - `quarter`: The reported year or TTM (e.g., "Mar 2024", "TTM").
     - `eps`: Earnings Per Share.
     - `eps_growth_yoy`: Year-over-Year EPS growth percentage.
     - `revenue`: Total revenue.
     - `rev_growth_yoy`: Year-over-Year revenue growth percentage.
     - `earnings_surprise`: Percentage beat or miss vs consensus estimates.
+    - `roe`: Return on Equity (latest available).
+    - `debt_to_equity`: Debt to Equity ratio (latest available).
     - `promoter_holding`: Percentage of shares held by promoters.
     
-    Use this tool to verify that a technical setup is backed by strong fundamental growth and high/stable promoter ownership.
+    Use this tool to verify that a technical setup is backed by strong fundamental growth, good ratios, and high/stable promoter ownership.
     """
     with duckdb.connect(DB_PATH) as c:
         df = c.execute("""
+            WITH latest_fetch AS (
+                SELECT MAX(fetch_date) as max_date FROM annual_results WHERE symbol = ?
+            )
             SELECT symbol, quarter, eps, eps_growth_yoy, revenue, rev_growth_yoy,
-                   earnings_surprise, promoter_holding, fetch_date
-            FROM annual_results WHERE symbol = ?
-            ORDER BY fetch_date DESC LIMIT 1
-        """, (symbol,)).fetchdf()
+                   earnings_surprise, roe, debt_to_equity, promoter_holding, fetch_date
+            FROM annual_results 
+            WHERE symbol = ? AND fetch_date = (SELECT max_date FROM latest_fetch)
+            ORDER BY quarter DESC
+        """, (symbol, symbol)).fetchdf()
     return _fmt(df, f"no stored annual results for {symbol}")
 
 
-def get_quarterly_results(symbol: str) -> str:
-    print(f"🔧 [TOOL CALL] get_quarterly_results for {symbol}")
+def get_quarterly_fundamentals(symbol: str) -> str:
+    print(f"🔧 [TOOL CALL] get_quarterly_fundamentals for {symbol}")
     """
-    Fetches the last 6 quarters of results for the requested `symbol`.
+    Fetches the last 6 quarters of results for the requested `symbol`, including shareholding trend.
     
     Args:
         symbol: NSE ticker without suffix (e.g., "RELIANCE").
         
-    Returns a table showing quarterly progression of EPS, EPS Growth YoY, Revenue, Revenue Growth YoY, and Net Profit.
+    Returns a table showing quarterly progression of EPS, EPS Growth YoY, Revenue, Revenue Growth YoY, Net Profit, and Shareholding (Promoter, FII, DII).
     
-    Use this tool to check for earnings acceleration (eps_growth increasing over recent quarters), which is a key SEPA criterion.
+    Use this tool to check for earnings acceleration and increasing institutional/promoter interest over recent quarters.
     """
     with duckdb.connect(DB_PATH) as c:
         df = c.execute("""
-            SELECT symbol, quarter, eps, eps_growth_yoy, revenue, rev_growth_yoy, net_profit, fetch_date
+            SELECT symbol, quarter, eps, eps_growth_yoy, revenue, rev_growth_yoy, net_profit,
+                   promoter_holding, fii_holding, dii_holding, fetch_date
             FROM quarterly_results WHERE symbol = ?
             ORDER BY quarter DESC LIMIT 6
         """, (symbol,)).fetchdf()

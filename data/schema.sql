@@ -90,6 +90,9 @@ CREATE TABLE IF NOT EXISTS quarterly_results (
     rev_growth_yoy  DOUBLE,
     net_profit      DOUBLE,
     fetch_date      DATE,
+    promoter_holding DOUBLE,
+    fii_holding     DOUBLE,
+    dii_holding     DOUBLE,
     PRIMARY KEY (symbol, quarter)
 );
 

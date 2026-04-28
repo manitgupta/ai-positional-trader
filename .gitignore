@@ -3,3 +3,4 @@
 venv/
 .DS_Store
 data/universe.duckdb
+data/universe.duckdb.bak
