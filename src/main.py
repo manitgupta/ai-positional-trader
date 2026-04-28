@@ -24,9 +24,9 @@ from src.analyst.graph import app as analyst_graph
 from src.analyst.parser import extract_json_blocks
 from src.portfolio.journal import ResearchJournal
 from src.portfolio.manager import PortfolioManager
-from src.notifications.telegram import send_telegram_message
+from src.notifications.telegram import send_telegram_message, send_telegram_document
 
-def run_nightly_pipeline(no_journal=False):
+def run_nightly_pipeline(no_journal=False, no_telegram=False):
     print(f"🚀 Starting production nightly pipeline run at {datetime.datetime.now()}")
     
     # Load full universe from DB
@@ -340,7 +340,7 @@ def run_nightly_pipeline(no_journal=False):
                 portfolio.update_stop_loss(symbol, dec.get('new_stop'))
 
     # 7. Generate Telegram Summary
-    if not no_journal:
+    if not no_telegram:
         print("\n--- Phase 6: Generate Telegram Summary ---")
         today = datetime.date.today().strftime("%B %d, %Y")
         summary_prompt = f"""
@@ -368,14 +368,33 @@ def run_nightly_pipeline(no_journal=False):
         # 8. Notifications
         print("\n--- Phase 7: Notifications ---")
         send_telegram_message(summary)
+        
+        # Attach full memo
+        import tempfile
+        
+        try:
+            with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.md', prefix='memo_') as temp_file:
+                temp_file.write(memo)
+                temp_file_path = temp_file.name
+                
+            print(f"Sending full memo as file from {temp_file_path}...")
+            send_telegram_document(temp_file_path, caption=f"Full Research Memo - {today}")
+            
+            # Clean up
+            os.remove(temp_file_path)
+        except Exception as e:
+            print(f"Error handling memo file: {e}")
+            if 'temp_file_path' in locals() and os.path.exists(temp_file_path):
+                os.remove(temp_file_path)
     else:
-        print("\nSkipping Phase 6 (Summary Generation) and Phase 7 (Notifications) in no-journal mode.")
+        print("\nSkipping Phase 6 (Summary Generation) and Phase 7 (Notifications) due to --no-telegram flag.")
     
     print("\n🎉 Pipeline run completed.")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run nightly trading pipeline.")
     parser.add_argument('--no-journal', action='store_true', help="Skip saving entries to research journal.")
+    parser.add_argument('--no-telegram', action='store_true', help="Skip generating summary and sending Telegram notifications.")
     args = parser.parse_args()
     
-    run_nightly_pipeline(no_journal=args.no_journal)
+    run_nightly_pipeline(no_journal=args.no_journal, no_telegram=args.no_telegram)

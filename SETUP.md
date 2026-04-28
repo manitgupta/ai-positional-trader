@@ -29,14 +29,41 @@ GEMINI_API_KEY=your_gemini_api_key
 # Telegram Notifications (Optional, prints to console if missing)
 TELEGRAM_BOT_TOKEN=your_bot_token
 TELEGRAM_CHAT_ID=your_chat_id
+
+# MotherDuck (Optional for local, required for sync/CI)
+MOTHERDUCK_TOKEN=your_motherduck_token
 ```
 
+
+## Database Synchronization
+
+The project uses a hybrid DuckDB and MotherDuck architecture. To sync data:
+
+- **Push local data to MotherDuck**:
+  ```bash
+  python3 src/pipeline/sync_db.py push
+  ```
+- **Pull remote data from MotherDuck**:
+  ```bash
+  python3 src/pipeline/sync_db.py pull
+  ```
+
 ## How to Run
+
 
 ### Test Run / Manual Run
 To run the pipeline manually:
 ```bash
-python3 src/main.py
+python3 src/main.py [--no-journal] [--no-telegram]
+```
+
+**Available Flags:**
+- `--no-journal`: Skip saving entries to the research journal.
+- `--no-telegram`: Skip generating summary and sending Telegram notifications.
+
+Example:
+```bash
+python3 src/main.py --no-telegram
 ```
 
 ### Running Scheduled (Local)
@@ -47,9 +74,10 @@ python3 scheduler.py
 
 ### Running Scheduled (GitHub Actions)
 A GitHub Actions workflow is defined in `.github/workflows/nightly-run.yml`.
-- It runs automatically at **16:05 IST (10:35 UTC)** on weekdays.
-- **Database Updates**: Since GitHub Actions runs on ephemeral runners, the workflow automatically commits the updated `data/universe.duckdb` file and pushes it back to the repository's main branch at the end of each run, ensuring data persistence.
-- **Secrets**: Add your `GEMINI_API_KEY`, `TELEGRAM_BOT_TOKEN`, and `TELEGRAM_CHAT_ID` as GitHub Secrets in your repository settings (`Settings -> Secrets and variables -> Actions`).
+- It runs automatically at schedule specified in the workflow file (currently 12:37 UTC / 18:07 IST on weekdays).
+- **Database Updates**: The workflow uses MotherDuck for data persistence. It does not commit the database file back to the repository.
+- **Secrets**: Add your `GEMINI_API_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, and `MOTHERDUCK_TOKEN` as GitHub Secrets in your repository settings (`Settings -> Secrets and variables -> Actions`).
+
 
 ## Telegram Setup Instructions
 

@@ -18,8 +18,10 @@ trading-bot/
     │   ├── load_universe.py   # Loads full NSE symbols list into DB
     │   ├── fetch_prices.py    # Price fetcher (Yahoo Finance, Incremental)
     │   ├── compute_signals.py   # Signal computer (pandas-ta, Incremental)
-    │   ├── fetch_fundamentals.py # Fundamentals fetcher (Trendlyne Scraper, 7-day cache)
-    │   └── fetch_news.py        # News fetcher (Live RSS)
+    │   ├── fetch_fundamentals.py # Fundamentals fetcher (Screener.in)
+    │   ├── fetch_news.py        # News fetcher (Live RSS)
+    │   └── sync_db.py           # Database sync utility (MotherDuck)
+
     ├── screener/
     │   ├── filters.py         # Hard-filter logic
     │   ├── scorer.py          # Composite scoring
@@ -52,7 +54,8 @@ The bot operates in a 7-phase nightly batch execution flow orchestrated by `src/
 *   Applies strict Minervini-style hard filters (e.g., RS Rank >= 70, Price > 200 MA, ADX > 20) to narrow down the universe to top momentum candidates.
 
 ### 3. Targeted Ingestion (Fundamentals & News)
-*   **Fundamentals**: Scrapes quarterly metrics (EPS growth, RoE, Debt/Equity) from Trendlyne *only* for stocks that passed the technical filters. Results are cached for **7 days** to avoid rate limits.
+*   **Fundamentals**: Scrapes quarterly metrics (EPS growth, Sales growth) from Screener.in *only* for stocks that passed the technical filters.
+
 *   **News**: Scrapes live RSS feeds from Moneycontrol and Economic Times for candidates.
 
 ### 4. Screener (Composite Scoring)
@@ -73,5 +76,6 @@ The bot operates in a 7-phase nightly batch execution flow orchestrated by `src/
 *   Delivers the rich summary directly to your configured Telegram chat.
 
 ## Persistence
-*   **DuckDB**: All data sits in a highly efficient local DuckDB file at `data/universe.duckdb`.
-*   **Git LFS**: Because the database grows to 60MB+, it is tracked in the repository using Git Large File Storage (LFS).
+*   **DuckDB**: Local data sits in a highly efficient local DuckDB file at `data/universe.duckdb` (untracked).
+*   **MotherDuck**: Used for cloud data hosting and synchronization, avoiding Git LFS storage issues.
+

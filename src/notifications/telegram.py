@@ -96,6 +96,48 @@ def send_telegram_message(message):
                 
     return all_success
 
+def send_telegram_document(file_path, caption=None):
+    """Sends a document to a Telegram chat."""
+    bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+    
+    if not bot_token or not chat_id:
+        print("Telegram credentials not found. Cannot send document.")
+        return False
+        
+    url = f"https://api.telegram.org/bot{bot_token}/sendDocument"
+    
+    try:
+        with open(file_path, 'rb') as f:
+            files = {'document': f}
+            data = {'chat_id': chat_id}
+            if caption:
+                data['caption'] = caption
+                
+            response = requests.post(url, data=data, files=files)
+            
+            if response.status_code == 200:
+                print("Document sent successfully.")
+                return True
+            else:
+                print(f"Failed to send document: {response.status_code} - {response.text}")
+                return False
+    except Exception as e:
+        print(f"Error sending document: {e}")
+        return False
+
 if __name__ == "__main__":
     test_message = "*Test Message* from Positional Trading Bot.\n\nThis is a test."
     send_telegram_message(test_message)
+    
+    # Test send_telegram_document
+    test_file = "test_memo.txt"
+    with open(test_file, "w") as f:
+        f.write("This is a test memo for Telegram document attachment.")
+    
+    print("Testing send_telegram_document...")
+    send_telegram_document(test_file, caption="Test Memo File")
+    
+    import os
+    if os.path.exists(test_file):
+        os.remove(test_file)

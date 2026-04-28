@@ -8,12 +8,18 @@ For detailed technical architecture, data flow pipeline, and folder structure, p
 
 ## Setup & Execution
 
-For detailed instructions on how to:
-- Set up the environment and database
-- Configure credentials and Telegram
-- Run the bot manually or scheduled
+For detailed instructions on how to set up and run the bot, please refer to the [SETUP.md](file:///Users/manitgupta/experiments/ai-positional-trader/SETUP.md) file.
 
-Please refer to the [SETUP.md](file:///Users/manitgupta/experiments/ai-positional-trader/SETUP.md) file.
+### Quick Run
+
+To run the pipeline manually:
+```bash
+python3 src/main.py
+```
+
+**Available Flags:**
+- `--no-journal`: Skip saving entries to the research journal.
+- `--no-telegram`: Skip generating summary and sending Telegram notifications.
 
 ## The Stock Selection Process (Methodology)
 
@@ -45,6 +51,10 @@ Stocks passing these filters (typically ~800) are then ranked using a **Composit
 - **Sector RS (15%)**: Favors stocks in leading sectors.
 
 The top **30 candidates** from this ranking proceed to the next phase.
+
+> [!NOTE]
+> **Forced Symbols**: To ensure continuity, stocks currently in the open portfolio or recently added to the watchlist are automatically included in the analysis candidates even if they don't pass the hard filters.
+
 
 ### Phase 3: Data Enrichment
 - Fetches fresh **Quarterly Fundamentals** and **News** from Screener.in *only* for the top 30 candidates to avoid rate limits.
@@ -81,11 +91,27 @@ The system detects Mark Minervini's "Code 33" pattern (3 consecutive quarters of
 
 The bot is designed to be a nightly advisor. It does not execute trades automatically. Here is how you should use its output:
 
-1. **Review the Daily Telegram Message**: Every day after market close, read the summary message sent to your Telegram.
+1. **Review the Daily Telegram Message**: Every day after market close, read the summary message sent to your Telegram. **The full research memo is also attached as a text file** for deep-diving into the analysis.
 2. **Focus on "Buy Setups"**: These are stocks in a low-risk entry position. 
    * **DO NOT buy them immediately** at the market open.
    * Set an alert in your trading terminal (e.g., Zerodha, Groww) for the specific **Entry Trigger** price provided by the bot.
    * Only take the trade if the stock crosses the trigger price on strong volume during market hours.
 3. **Use the Watchlist**: These are great stocks that are currently too extended or need more time to consolidate. Add them to your broker's watchlist and wait for them to form a proper base. They may graduate to "Buy Setups" in future runs.
 4. **Respect Risk Management**: Always set the **Stop Loss** provided by the bot to protect your capital.
+
+## Custom Research Utility
+
+You can run the research flow for a specific list of stocks bypassing the nightly scan. This will fetch fresh fundamentals and news for the specified symbols and generate a research memo.
+
+```bash
+python3 src/custom_research.py SYMBOL1 SYMBOL2 ...
+```
+
+## Database Synchronization (MotherDuck)
+
+The project uses a hybrid DuckDB and MotherDuck architecture. Local data is stored in `data/universe.duckdb` (untracked). To sync with MotherDuck:
+
+- Push local updates to MotherDuck: `python3 src/pipeline/sync_db.py push`
+- Pull remote updates to local file: `python3 src/pipeline/sync_db.py pull`
+
 
