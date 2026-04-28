@@ -370,22 +370,22 @@ def run_nightly_pipeline(no_journal=False, no_telegram=False):
         send_telegram_message(summary)
         
         # Attach full memo
-        import tempfile
-        
         try:
-            with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.md', prefix='memo_') as temp_file:
-                temp_file.write(memo)
-                temp_file_path = temp_file.name
+            file_name = f"Research_Memo_{today.replace(' ', '_').replace(',', '')}.md"
+            file_path = os.path.join(os.getcwd(), file_name)
+            
+            with open(file_path, 'w') as f:
+                f.write(memo)
                 
-            print(f"Sending full memo as file from {temp_file_path}...")
-            send_telegram_document(temp_file_path, caption=f"Full Research Memo - {today}")
+            print(f"Sending full memo as file from {file_path}...")
+            send_telegram_document(file_path, caption=f"Full Research Memo - {today}")
             
             # Clean up
-            os.remove(temp_file_path)
+            os.remove(file_path)
         except Exception as e:
             print(f"Error handling memo file: {e}")
-            if 'temp_file_path' in locals() and os.path.exists(temp_file_path):
-                os.remove(temp_file_path)
+            if 'file_path' in locals() and os.path.exists(file_path):
+                os.remove(file_path)
     else:
         print("\nSkipping Phase 6 (Summary Generation) and Phase 7 (Notifications) due to --no-telegram flag.")
     
