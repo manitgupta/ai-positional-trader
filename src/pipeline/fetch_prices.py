@@ -1,5 +1,6 @@
 import os
 import datetime
+import zoneinfo
 import pandas as pd
 import duckdb
 import yfinance as yf
@@ -43,7 +44,7 @@ class PriceFetcher:
             print("Database is already up to date. Skipping price fetch.")
             return pd.DataFrame()
         elif from_date == to_date:
-            current_time = datetime.datetime.now().time()
+            current_time = datetime.datetime.now(zoneinfo.ZoneInfo("Asia/Kolkata")).time()
             # Market closes at 3:30 PM, setting threshold to 4:00 PM to be safe
             if current_time < datetime.time(16, 0):
                 print("Database is up to date for yesterday. Today's data might not be ready yet (before 4 PM). Skipping.")
