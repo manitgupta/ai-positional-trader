@@ -144,15 +144,19 @@ def get_breadth() -> str:
 def get_sector_peers(symbol: str) -> str:
     print(f"🔧 [TOOL CALL] get_sector_peers for {symbol}")
     """
-    Fetches key metrics for peers in the same sector as the requested `symbol`.
+    Fetches key metrics for peers in the same sector as the requested `symbol`,
+    including sector breadth and fundamental metrics for peers.
     
     Args:
         symbol: NSE ticker without suffix (e.g., "RELIANCE").
         
-    Returns a table of up to 10 peers in the same sector, ordered by Relative Strength (RS) rank descending.
-    Columns include: Symbol, Company Name, RS Rank, and % from 52-week high.
+    Returns:
+        A formatted string with:
+        - Sector Breadth: Total peers and count of peers within 5% of 52-week high.
+        - A table of up to 10 peers in the same sector, ordered by Relative Strength (RS) rank descending.
+          Columns include: Symbol, Company Name, RS Rank, % from 52-week high, EPS Growth YoY, and ROE.
     
-    Use this tool to determine if the candidate stock is a leader in its sector (highest RS rank) or a laggard, and to see if the sector as a whole is showing strength.
+    Use this tool to determine if the candidate stock is a leader in its sector (highest RS rank) or a laggard, and to see if the sector as a whole is showing strength (Cluster Breadth).
     """
     try:
         with duckdb.connect(DB_PATH) as c:
@@ -162,18 +166,51 @@ def get_sector_peers(symbol: str) -> str:
                 return f"No sector found for {symbol}."
             sector = sector_res[0]
             
-            # Get peers in the same sector
+            # 1. Compute Sector Breadth
+            breadth_df = c.execute("""
+                WITH latest_signals AS (
+                    SELECT u.symbol, s.pct_from_52w_high
+                    FROM universe u
+                    JOIN signals s ON u.symbol = s.symbol
+                    WHERE u.sector = ?
+                    QUALIFY ROW_NUMBER() OVER (PARTITION BY u.symbol ORDER BY s.date DESC) = 1
+                )
+                SELECT 
+                    count(*) as total_peers,
+                    count(CASE WHEN pct_from_52w_high >= -5 THEN 1 END) as near_highs
+                FROM latest_signals
+            """, (sector,)).fetchdf()
+            
+            total_peers = breadth_df['total_peers'].iloc[0] if not breadth_df.empty else 0
+            near_highs = breadth_df['near_highs'].iloc[0] if not breadth_df.empty else 0
+            pct_near_highs = (near_highs / total_peers * 100) if total_peers > 0 else 0
+            
+            breadth_str = f"Sector Breadth: {near_highs} of {total_peers} peers ({pct_near_highs:.1f}%) trading within 5% of 52W high."
+            
+            # 2. Get peers with fundamentals
             peers_df = c.execute("""
-                SELECT u.symbol, u.company_name, s.rs_rank, s.pct_from_52w_high
+                WITH latest_fundamentals AS (
+                    SELECT symbol, eps_growth_yoy, roe
+                    FROM annual_results
+                    QUALIFY ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY fetch_date DESC, quarter DESC) = 1
+                )
+                SELECT u.symbol, u.company_name, s.rs_rank, s.pct_from_52w_high, 
+                       round(f.eps_growth_yoy, 1) as eps_growth_yoy, round(f.roe, 1) as roe
                 FROM universe u
                 LEFT JOIN signals s ON u.symbol = s.symbol
+                LEFT JOIN latest_fundamentals f ON u.symbol = f.symbol
                 WHERE u.sector = ? AND u.symbol != ?
                 QUALIFY ROW_NUMBER() OVER (PARTITION BY u.symbol ORDER BY s.date DESC) = 1
                 ORDER BY s.rs_rank DESC
                 LIMIT 10
             """, (sector, symbol)).fetchdf()
             
-            return f"--- Peers in Sector: {sector} ---\n{_fmt(peers_df, 'no peers found')}"
+            return (
+                f"--- Sector: {sector} ---\n"
+                f"{breadth_str}\n\n"
+                f"--- Top 10 Peers by RS Rank ---\n"
+                f"{_fmt(peers_df, 'no peers found')}"
+            )
     except Exception as e:
         return f"Error fetching sector peers: {e}"
 

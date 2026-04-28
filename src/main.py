@@ -3,6 +3,7 @@ import datetime
 import pandas as pd
 import sys
 import duckdb
+import argparse
 
 # Add project root to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -25,7 +26,7 @@ from src.portfolio.journal import ResearchJournal
 from src.portfolio.manager import PortfolioManager
 from src.notifications.telegram import send_telegram_message
 
-def run_nightly_pipeline():
+def run_nightly_pipeline(no_journal=False):
     print(f"🚀 Starting production nightly pipeline run at {datetime.datetime.now()}")
     
     # Load full universe from DB
@@ -313,7 +314,10 @@ def run_nightly_pipeline():
             thesis = dec.get('thesis')
             conviction = dec.get('conviction')
             
-            journal.add_entry(symbol, thesis, conviction, action, dec.get('entry_trigger'))
+            if not no_journal:
+                journal.add_entry(symbol, thesis, conviction, action, dec.get('entry_trigger'))
+            else:
+                print(f"Skipping journal entry for {symbol} (no-journal mode)")
             
             # Positions are opened manually by the user. Auto-open disabled.
             # if action == 'ENTER' or action == 'WATCH_FOR_ENTRY':
@@ -355,4 +359,8 @@ def run_nightly_pipeline():
     print("\n🎉 Pipeline run completed.")
 
 if __name__ == "__main__":
-    run_nightly_pipeline()
+    parser = argparse.ArgumentParser(description="Run nightly trading pipeline.")
+    parser.add_argument('--no-journal', action='store_true', help="Skip saving entries to research journal.")
+    args = parser.parse_args()
+    
+    run_nightly_pipeline(no_journal=args.no_journal)
