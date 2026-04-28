@@ -289,9 +289,21 @@ def run_nightly_pipeline(no_journal=False):
     
     # 5. Gemini Analyst
     print("\n--- Phase 4: Gemini Analyst ---")
-    print(f"Running LangGraph flow for {len(candidate_symbols)} candidates...")
-    graph_result = analyst_graph.invoke({"candidates": candidate_symbols, "candidates_df": scored_candidates.head(30)})
-    memo = graph_result.get("final_memo", "")
+    total_candidates = len(candidate_symbols)
+    finished_evaluations = 0
+    print(f"Running LangGraph flow for {total_candidates} candidates...")
+    
+    memo = ""
+    for chunk in analyst_graph.stream({"candidates": candidate_symbols, "candidates_df": scored_candidates.head(30)}):
+        for node_name, state_update in chunk.items():
+            if node_name == "evaluate_candidate":
+                finished_evaluations += 1
+                still_executing = total_candidates - finished_evaluations
+                print(f"Progress: {finished_evaluations}/{total_candidates} candidates evaluated. ({still_executing} still executing...)")
+            elif node_name == "synthesize_memo":
+                memo = state_update.get("final_memo", "")
+            else:
+                print(f"📍 Node '{node_name}' finished executing.")
     
     print("\n--- Memo Generated ---")
     print(memo)
@@ -328,33 +340,36 @@ def run_nightly_pipeline(no_journal=False):
                 portfolio.update_stop_loss(symbol, dec.get('new_stop'))
 
     # 7. Generate Telegram Summary
-    print("\n--- Phase 6: Generate Telegram Summary ---")
-    today = datetime.date.today().strftime("%B %d, %Y")
-    summary_prompt = f"""
-    You are a professional equity research editor. Summarize the research memo above into a visually stunning, highly readable Telegram message using HTML tags.
-    
-    Current Date: {today}
-    
-    Follow these styling rules to make it look rich and premium:
-    1. Use Emojis extensively to add color and structure (e.g., 🚀 for Buy Setups, 👀 for Watchlist, 🎯 for Targets, 🛑 for Stop Loss, 📈 for RS Rank).
-    2. Use <b>ALL CAPS BOLD</b> for section headers.
-    3. Use <pre>...</pre> to display key metrics and triggers cleanly.
-    4. Keep it under 4000 characters so it fits in a single message.
-    5. Output ONLY valid HTML. Do NOT use Markdown tags like ** or *.
-    
-    Telegram supports only these tags: <b>, <i>, <u>, <s>, <a>, <code>, <pre>. Do NOT use any other tags like <p>, <h1>, <ul> etc.
-    
-    Structure the message with:
-    - A professional header with the date {today}.
-    - A 📊 <b>PORTFOLIO REVIEW</b> section summarizing the status of open positions and any actions needed.
-    - A 🚀 <b>BUY SETUPS</b> section with clean, structured details and detailed evidence of why it passed for each top candidate.
-    - A 👀 <b>WATCHLIST</b> section with specific triggers.
-    """
-    summary = GeminiAnalyst().generate_summary(memo, summary_prompt)
-    
-    # 8. Notifications
-    print("\n--- Phase 7: Notifications ---")
-    send_telegram_message(summary)
+    if not no_journal:
+        print("\n--- Phase 6: Generate Telegram Summary ---")
+        today = datetime.date.today().strftime("%B %d, %Y")
+        summary_prompt = f"""
+        You are a professional equity research editor. Summarize the research memo above into a visually stunning, highly readable Telegram message using HTML tags.
+        
+        Current Date: {today}
+        
+        Follow these styling rules to make it look rich and premium:
+        1. Use Emojis extensively to add color and structure (e.g., 🚀 for Buy Setups, 👀 for Watchlist, 🎯 for Targets, 🛑 for Stop Loss, 📈 for RS Rank).
+        2. Use <b>ALL CAPS BOLD</b> for section headers.
+        3. Use <pre>...</pre> to display key metrics and triggers cleanly.
+        4. Keep it under 4000 characters so it fits in a single message.
+        5. Output ONLY valid HTML. Do NOT use Markdown tags like ** or *.
+        
+        Telegram supports only these tags: <b>, <i>, <u>, <s>, <a>, <code>, <pre>. Do NOT use any other tags like <p>, <h1>, <ul> etc.
+        
+        Structure the message with:
+        - A professional header with the date {today}.
+        - A 📊 <b>PORTFOLIO REVIEW</b> section summarizing the status of open positions and any actions needed.
+        - A 🚀 <b>BUY SETUPS</b> section with clean, structured details and detailed evidence of why it passed for each top candidate.
+        - A 👀 <b>WATCHLIST</b> section with specific triggers.
+        """
+        summary = GeminiAnalyst().generate_summary(memo, summary_prompt)
+        
+        # 8. Notifications
+        print("\n--- Phase 7: Notifications ---")
+        send_telegram_message(summary)
+    else:
+        print("\nSkipping Phase 6 (Summary Generation) and Phase 7 (Notifications) in no-journal mode.")
     
     print("\n🎉 Pipeline run completed.")
 
