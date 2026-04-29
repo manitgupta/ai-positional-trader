@@ -3,6 +3,7 @@ from typing_extensions import TypedDict
 import operator
 import json
 import os
+import time
 from langgraph.graph import StateGraph, START, END
 from langgraph.constants import Send
 from google import genai
@@ -69,32 +70,40 @@ def evaluate_candidate(state: CandidateState):
     Please analyze {candidate} following the mandatory steps and output the JSON evaluation.
     """
     
-    try:
-        response = client.models.generate_content(
-            model=GEMINI_MODEL,
-            contents=prompt,
-            config=cfg,
-        )
-        
-        # Extract JSON from response
-        text = response.text
-        blocks = extract_json_blocks(text)
-        
-        if blocks:
-            evaluation = blocks[0]
-        else:
-            # Fallback: try to parse whole text as JSON if no markdown blocks
-            try:
-                evaluation = json.loads(text.strip())
-            except json.JSONDecodeError:
-                print(f"❌ Failed to parse evaluation for {candidate}. Raw text: {text[:200]}...")
-                evaluation = {"symbol": candidate, "action": "HOLD", "thesis": f"Failed to parse analysis. Raw: {text[:100]}"}
-                
-        return {"evaluations": [evaluation]}
-        
-    except Exception as e:
-        print(f"❌ Error evaluating {candidate}: {e}")
-        return {"evaluations": [{"symbol": candidate, "action": "HOLD", "thesis": f"Error during analysis: {e}"}]}
+    max_attempts = 3
+    for attempt in range(max_attempts):
+        try:
+            response = client.models.generate_content(
+                model=GEMINI_MODEL,
+                contents=prompt,
+                config=cfg,
+            )
+            
+            # Extract JSON from response
+            text = response.text
+            blocks = extract_json_blocks(text)
+            
+            if blocks:
+                evaluation = blocks[0]
+            else:
+                # Fallback: try to parse whole text as JSON if no markdown blocks
+                try:
+                    evaluation = json.loads(text.strip())
+                except json.JSONDecodeError:
+                    print(f"❌ Failed to parse evaluation for {candidate}. Raw text: {text[:200]}...")
+                    evaluation = {"symbol": candidate, "action": "HOLD", "thesis": f"Failed to parse analysis. Raw: {text[:100]}"}
+                    
+            return {"evaluations": [evaluation]}
+            
+        except Exception as e:
+            print(f"❌ Error evaluating {candidate} (Attempt {attempt + 1}/{max_attempts}): {e}")
+            if attempt == max_attempts - 1:
+                print(f"Skipping {candidate} after {max_attempts} failed attempts.")
+                return {"evaluations": [{"symbol": candidate, "action": "HOLD", "thesis": f"Error during analysis: {e}"}]}
+            
+            sleep_time = 2 ** attempt
+            print(f"Waiting {sleep_time} seconds before retry...")
+            time.sleep(sleep_time)
 
 def critic_selector(state: OverallState):
     evaluations = state["evaluations"]
