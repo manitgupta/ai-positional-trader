@@ -1,4 +1,8 @@
 import os
+import json
+import datetime
+from markdown_pdf import MarkdownPdf, Section
+from src.analyst.gemini_call import GeminiAnalyst
 import requests
 import html
 import re
@@ -96,6 +100,64 @@ def send_telegram_message(message):
                 
     return all_success
 
+def json_to_markdown_table(json_str):
+    """Converts a JSON string containing a 'decisions' array into a markdown table."""
+    try:
+        data = json.loads(json_str)
+        if not isinstance(data, dict) or 'decisions' not in data:
+            return "```json\n" + json_str + "\n```" # Return as is if not expected format
+            
+        decisions = data['decisions']
+        if not decisions:
+            return "*No decisions in this section.*"
+            
+        # Get all unique keys from all objects to form headers
+        headers = set()
+        for d in decisions:
+            headers.update(d.keys())
+        
+        # We want a specific order if possible, otherwise alphabetical
+        preferred_order = ['symbol', 'ticker', 'action', 'conviction', 'entry_trigger', 'entry_zone', 'stop_loss', 'target', 'position_size_pct', 'thesis', 'justification']
+        sorted_headers = []
+        for h in preferred_order:
+            if h in headers:
+                sorted_headers.append(h)
+                headers.remove(h)
+        sorted_headers.extend(sorted(list(headers))) # Add remaining keys alphabetically
+        
+        # Build table header
+        table = "| " + " | ".join([h.replace('_', ' ').title() for h in sorted_headers]) + " |\n"
+        table += "| " + " | ".join(["---"] * len(sorted_headers)) + " |\n"
+        
+        # Build rows
+        for d in decisions:
+            row = []
+            for h in sorted_headers:
+                val = d.get(h, "")
+                if isinstance(val, list):
+                    val = ", ".join(map(str, val))
+                elif val is None:
+                    val = ""
+                row.append(str(val).replace('\n', ' ')) # Replace newlines with spaces to avoid breaking the table
+            table += "| " + " | ".join(row) + " |\n"
+            
+        return table
+    except json.JSONDecodeError:
+        return "```json\n" + json_str + "\n```" # Return as is if invalid JSON
+    except Exception as e:
+        print(f"Error converting JSON to table: {e}")
+        return "```json\n" + json_str + "\n```"
+
+def preprocess_memo(text):
+    """Finds JSON blocks in the text and converts them to markdown tables."""
+    pattern = r'```json\s*([\s\S]*?)\s*```'
+    
+    def replacer(match):
+        json_str = match.group(1).strip()
+        return json_to_markdown_table(json_str)
+        
+    return re.sub(pattern, replacer, text)
+
 def send_telegram_document(file_path, caption=None):
     """Sends a document to a Telegram chat."""
     bot_token = os.environ.get("TELEGRAM_BOT_TOKEN")
@@ -124,6 +186,62 @@ def send_telegram_document(file_path, caption=None):
                 return False
     except Exception as e:
         print(f"Error sending document: {e}")
+        return False
+
+def send_research_report(memo, no_telegram=False):
+    """Generates a summary and sends it to Telegram along with the full memo as a PDF."""
+    if no_telegram:
+        print("\nSkipping Telegram summary and notifications due to --no-telegram flag.")
+        return True
+        
+    print("\n--- Generating Telegram Summary ---")
+    today = datetime.date.today().strftime("%B %d, %Y")
+    summary_prompt = f"""
+    You are a professional equity research editor. Summarize the research memo above into a visually stunning, highly readable Telegram message using HTML tags.
+    
+    Current Date: {today}
+    
+    Follow these styling rules to make it look rich and premium:
+    1. Use Emojis extensively to add color and structure (e.g., 🚀 for Buy Setups, 👀 for Watchlist, 🎯 for Targets, 🛑 for Stop Loss, 📈 for RS Rank).
+    2. Use <b>ALL CAPS BOLD</b> for section headers.
+    3. Use <pre>...</pre> to display key metrics and triggers cleanly.
+    4. Keep it under 4000 characters so it fits in a single message.
+    5. Output ONLY valid HTML. Do NOT use Markdown tags like ** or *.
+    
+    Telegram supports only these tags: <b>, <i>, <u>, <s>, <a>, <code>, <pre>. Do NOT use any other tags like <p>, <h1>, <ul> etc.
+    
+    Structure the message with:
+    - A professional header with the date {today}.
+    - A 📊 <b>PORTFOLIO REVIEW</b> section summarizing the status of open positions and any actions needed.
+    - A 🚀 <b>BUY SETUPS</b> section with clean, structured details and detailed evidence of why it passed for each top candidate.
+    - A 👀 <b>WATCHLIST</b> section with specific triggers.
+    """
+    
+    try:
+        summary = GeminiAnalyst().generate_summary(memo, summary_prompt)
+        
+        print("\n--- Sending Notifications ---")
+        send_telegram_message(summary)
+        
+        # Generate and send PDF
+        file_name = f"Research_Memo_{today.replace(' ', '_').replace(',', '')}.pdf"
+        file_path = os.path.join(os.getcwd(), file_name)
+        
+        print(f"Generating PDF: {file_path}...")
+        pdf = MarkdownPdf()
+        pdf.add_section(Section(preprocess_memo(memo), toc=False))
+        pdf.save(file_path)
+        
+        print(f"Sending PDF file...")
+        send_telegram_document(file_path, caption=f"Full Research Memo - {today}")
+        
+        # Clean up
+        os.remove(file_path)
+        return True
+    except Exception as e:
+        print(f"Error in send_research_report: {e}")
+        if 'file_path' in locals() and os.path.exists(file_path):
+            os.remove(file_path)
         return False
 
 if __name__ == "__main__":

@@ -24,8 +24,9 @@ from src.analyst.graph import app as analyst_graph
 from src.analyst.parser import extract_json_blocks
 from src.portfolio.journal import ResearchJournal
 from src.portfolio.manager import PortfolioManager
-from src.notifications.telegram import send_telegram_message, send_telegram_document
-from markdown_pdf import MarkdownPdf, Section
+from src.notifications.telegram import send_research_report
+
+
 
 def run_nightly_pipeline(no_journal=False, no_telegram=False):
     print(f"🚀 Starting production nightly pipeline run at {datetime.datetime.now()}")
@@ -340,58 +341,8 @@ def run_nightly_pipeline(no_journal=False, no_telegram=False):
             else:
                 print(f"Skipping journal entry for {symbol} (no-journal mode)")
 
-    # 7. Generate Telegram Summary
-    if not no_telegram:
-        print("\n--- Phase 6: Generate Telegram Summary ---")
-        today = datetime.date.today().strftime("%B %d, %Y")
-        summary_prompt = f"""
-        You are a professional equity research editor. Summarize the research memo above into a visually stunning, highly readable Telegram message using HTML tags.
-        
-        Current Date: {today}
-        
-        Follow these styling rules to make it look rich and premium:
-        1. Use Emojis extensively to add color and structure (e.g., 🚀 for Buy Setups, 👀 for Watchlist, 🎯 for Targets, 🛑 for Stop Loss, 📈 for RS Rank).
-        2. Use <b>ALL CAPS BOLD</b> for section headers.
-        3. Use <pre>...</pre> to display key metrics and triggers cleanly.
-        4. Keep it under 4000 characters so it fits in a single message.
-        5. Output ONLY valid HTML. Do NOT use Markdown tags like ** or *.
-        
-        Telegram supports only these tags: <b>, <i>, <u>, <s>, <a>, <code>, <pre>. Do NOT use any other tags like <p>, <h1>, <ul> etc.
-        
-        Structure the message with:
-        - A professional header with the date {today}.
-        - A 📊 <b>PORTFOLIO REVIEW</b> section summarizing the status of open positions and any actions needed.
-        - A 🚀 <b>BUY SETUPS</b> section with clean, structured details and detailed evidence of why it passed for each top candidate.
-        - A 👀 <b>WATCHLIST</b> section with specific triggers.
-        """
-        summary = GeminiAnalyst().generate_summary(memo, summary_prompt)
-        
-        # 8. Notifications
-        print("\n--- Phase 7: Notifications ---")
-        
-        send_telegram_message(summary)
-        
-        # Generate and send PDF
-        try:
-            file_name = f"Research_Memo_{today.replace(' ', '_').replace(',', '')}.pdf"
-            file_path = os.path.join(os.getcwd(), file_name)
-            
-            print(f"Generating PDF: {file_path}...")
-            pdf = MarkdownPdf()
-            pdf.add_section(Section(memo, toc=False))
-            pdf.save(file_path)
-            
-            print(f"Sending PDF file...")
-            send_telegram_document(file_path, caption=f"Full Research Memo - {today}")
-            
-            # Clean up
-            os.remove(file_path)
-        except Exception as e:
-            print(f"Error handling PDF file: {e}")
-            if 'file_path' in locals() and os.path.exists(file_path):
-                os.remove(file_path)
-    else:
-        print("\nSkipping Phase 6 (Summary Generation) and Phase 7 (Notifications) due to --no-telegram flag.")
+    # 7. Generate Telegram Summary & Send Report
+    send_research_report(memo, no_telegram=no_telegram)
     
     print("\n🎉 Pipeline run completed.")
 
