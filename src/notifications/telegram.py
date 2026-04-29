@@ -129,15 +129,3 @@ def send_telegram_document(file_path, caption=None):
 if __name__ == "__main__":
     test_message = "*Test Message* from Positional Trading Bot.\n\nThis is a test."
     send_telegram_message(test_message)
-    
-    # Test send_telegram_document
-    test_file = "test_memo.txt"
-    with open(test_file, "w") as f:
-        f.write("This is a test memo for Telegram document attachment.")
-    
-    print("Testing send_telegram_document...")
-    send_telegram_document(test_file, caption="Test Memo File")
-    
-    import os
-    if os.path.exists(test_file):
-        os.remove(test_file)

@@ -87,11 +87,7 @@ def evaluate_candidate(state: CandidateState):
                 evaluation = blocks[0]
             else:
                 # Fallback: try to parse whole text as JSON if no markdown blocks
-                try:
-                    evaluation = json.loads(text.strip())
-                except json.JSONDecodeError:
-                    print(f"❌ Failed to parse evaluation for {candidate}. Raw text: {text[:200]}...")
-                    evaluation = {"symbol": candidate, "action": "HOLD", "thesis": f"Failed to parse analysis. Raw: {text[:100]}"}
+                evaluation = json.loads(text.strip())
                     
             return {"evaluations": [evaluation]}
             

@@ -25,6 +25,7 @@ from src.analyst.parser import extract_json_blocks
 from src.portfolio.journal import ResearchJournal
 from src.portfolio.manager import PortfolioManager
 from src.notifications.telegram import send_telegram_message, send_telegram_document
+from markdown_pdf import MarkdownPdf, Section
 
 def run_nightly_pipeline(no_journal=False, no_telegram=False):
     print(f"🚀 Starting production nightly pipeline run at {datetime.datetime.now()}")
@@ -338,14 +339,6 @@ def run_nightly_pipeline(no_journal=False, no_telegram=False):
                 journal.add_entry(symbol, thesis, conviction, action, dec.get('entry_trigger'))
             else:
                 print(f"Skipping journal entry for {symbol} (no-journal mode)")
-            
-            # Positions are opened manually by the user. Auto-open disabled.
-            # if action == 'ENTER' or action == 'WATCH_FOR_ENTRY':
-            #     portfolio.open_position(symbol, dec.get('entry_zone', [0])[0], 0, dec.get('stop_loss'), dec.get('target'), dec.get('position_size_pct'), thesis)
-            if action == 'EXIT':
-                portfolio.close_position(symbol)
-            elif action == 'TRAIL_STOP':
-                portfolio.update_stop_loss(symbol, dec.get('new_stop'))
 
     # 7. Generate Telegram Summary
     if not no_telegram:
@@ -375,23 +368,26 @@ def run_nightly_pipeline(no_journal=False, no_telegram=False):
         
         # 8. Notifications
         print("\n--- Phase 7: Notifications ---")
+        
         send_telegram_message(summary)
         
-        # Attach full memo
+        # Generate and send PDF
         try:
-            file_name = f"Research_Memo_{today.replace(' ', '_').replace(',', '')}.md"
+            file_name = f"Research_Memo_{today.replace(' ', '_').replace(',', '')}.pdf"
             file_path = os.path.join(os.getcwd(), file_name)
             
-            with open(file_path, 'w') as f:
-                f.write(memo)
-                
-            print(f"Sending full memo as file from {file_path}...")
+            print(f"Generating PDF: {file_path}...")
+            pdf = MarkdownPdf()
+            pdf.add_section(Section(memo, toc=False))
+            pdf.save(file_path)
+            
+            print(f"Sending PDF file...")
             send_telegram_document(file_path, caption=f"Full Research Memo - {today}")
             
             # Clean up
             os.remove(file_path)
         except Exception as e:
-            print(f"Error handling memo file: {e}")
+            print(f"Error handling PDF file: {e}")
             if 'file_path' in locals() and os.path.exists(file_path):
                 os.remove(file_path)
     else:
