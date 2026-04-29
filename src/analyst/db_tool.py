@@ -29,7 +29,7 @@ def execute_read_only_query(query: str) -> str:
         if keyword in query_clean:
             return f"Error: Modification keyword '{keyword}' detected. Query rejected."
             
-    conn = duckdb.connect(DB_PATH)
+    conn = duckdb.connect(DB_PATH, read_only=True)
     try:
         result_df = conn.execute(query).fetchdf()
         if result_df.empty:

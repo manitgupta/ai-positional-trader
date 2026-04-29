@@ -64,7 +64,7 @@ def evaluate_candidate(state: CandidateState):
     {context}
     
     Check if {candidate} is in the "Open positions" list in the General Context.
-    - If it IS an open position, analyze it to determine if the thesis is intact and if you should HOLD, EXIT, or TRAIL_STOP. Call `get_open_position_detail("{candidate}")` to get current position info.
+    - If it IS an open position, analyze it to determine if the thesis is intact and if you should HOLD, EXIT, or TRAIL_STOP. Use the pre-fetched position details provided in the context. Do not call get_open_position_detail.
     - If it is NOT an open position, analyze it as a potential new opportunity or watchlist item.
     
     Please analyze {candidate} following the mandatory steps and output the JSON evaluation.
@@ -203,10 +203,40 @@ def synthesize_memo(state: OverallState):
 def map_candidates(state: OverallState):
     # This is the fan-out logic
     context_builder = ContextBuilder(DB_PATH)
-    return [Send("evaluate_candidate", {
-        "candidate": c, 
-        "context": context_builder.build_context(state["candidates_df"], target_symbol=c, macro_snapshot=state.get("macro_snapshot"))
-    }) for c in state["candidates"]]
+    
+    # Pre-fetch open position details
+    import duckdb
+    open_positions_df = pd.DataFrame()
+    try:
+        with duckdb.connect(DB_PATH, read_only=True) as c:
+            open_positions_df = c.execute("""
+                SELECT p.symbol, p.entry_date, p.entry_price, p.quantity,
+                       p.stop_loss, p.target, p.position_pct, p.thesis_summary,
+                       pr.close AS current_close, s.rsi_14, s.adx_14,
+                       round((pr.close - p.entry_price) / p.entry_price * 100, 2) AS pnl_pct
+                FROM portfolio p
+                LEFT JOIN signals s ON p.symbol = s.symbol
+                LEFT JOIN prices  pr ON p.symbol = pr.symbol AND s.date = pr.date
+                WHERE p.status = 'OPEN'
+                QUALIFY ROW_NUMBER() OVER (PARTITION BY p.symbol ORDER BY s.date DESC) = 1
+            """).fetchdf()
+    except Exception as e:
+        print(f"Error pre-fetching open positions: {e}")
+        
+    open_position_symbols = set(open_positions_df["symbol"].tolist()) if not open_positions_df.empty else set()
+    
+    send_tasks = []
+    for c in state["candidates"]:
+        context = context_builder.build_context(state["candidates_df"], target_symbol=c, macro_snapshot=state.get("macro_snapshot"))
+        
+        if c in open_position_symbols:
+            pos_detail = open_positions_df[open_positions_df["symbol"] == c]
+            pos_detail_str = pos_detail.to_string(index=False)
+            context += f"\n\n## Open Position Detail (pre-fetched — use this, do not call get_open_position_detail)\n{pos_detail_str}"
+            
+        send_tasks.append(Send("evaluate_candidate", {"candidate": c, "context": context}))
+        
+    return send_tasks
 
 workflow = StateGraph(OverallState)
 

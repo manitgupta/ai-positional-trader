@@ -85,7 +85,7 @@ def get_breadth() -> str:
     High percentages (>60-70%) above moving averages indicate a healthy, trending market supportive of breakouts. Low percentages (<30%) indicate a weak market where breakouts are likely to fail.
     """
     try:
-        with duckdb.connect(DB_PATH) as c:
+        with duckdb.connect(DB_PATH, read_only=True) as c:
             # Get latest date
             latest_date = c.execute("SELECT max(date) FROM signals").fetchone()[0]
             if not latest_date:
@@ -159,7 +159,7 @@ def get_sector_peers(symbol: str) -> str:
     Use this tool to determine if the candidate stock is a leader in its sector (highest RS rank) or a laggard, and to see if the sector as a whole is showing strength (Cluster Breadth).
     """
     try:
-        with duckdb.connect(DB_PATH) as c:
+        with duckdb.connect(DB_PATH, read_only=True) as c:
             # Get sector for the symbol
             sector_res = c.execute("SELECT sector FROM universe WHERE symbol = ?", (symbol,)).fetchone()
             if not sector_res or not sector_res[0]:
@@ -228,7 +228,7 @@ def get_sector_relative_strength(sector: str) -> str:
     Use this tool to identify leading sectors. Positional traders prefer to buy the best stocks in the best (highest average RS) sectors.
     """
     try:
-        with duckdb.connect(DB_PATH) as c:
+        with duckdb.connect(DB_PATH, read_only=True) as c:
             df = c.execute("""
                 SELECT AVG(s.rs_rank) as avg_rs_rank, COUNT(DISTINCT u.symbol) as company_count
                 FROM universe u
@@ -324,7 +324,7 @@ def get_price_history(symbol: str, days: int = 30) -> str:
     """
     print(f"🔧 [TOOL CALL] get_price_history for {symbol} (days={days})")
     days = max(1, min(int(days), 1200))
-    with duckdb.connect(DB_PATH) as c:
+    with duckdb.connect(DB_PATH, read_only=True) as c:
         df = c.execute(f"""
             SELECT s.date, p.close, p.volume,
                    s.rsi_14, s.adx_14, s.atr_14, s.macd_hist,
@@ -361,7 +361,7 @@ def get_weekly_history(symbol: str, weeks: int = 10) -> str:
     """
     print(f"🔧 [TOOL CALL] get_weekly_history for {symbol} (weeks={weeks})")
     weeks = max(1, min(int(weeks), 550))
-    with duckdb.connect(DB_PATH) as c:
+    with duckdb.connect(DB_PATH, read_only=True) as c:
         df = c.execute(f"""
             SELECT p.date, p.open, p.high, p.low, p.close, p.volume,
                    s.sma_10, s.sma_30, s.rsi_14, s.volume_ratio_10w, s.mansfield_rs
@@ -394,7 +394,7 @@ def get_annual_fundamentals(symbol: str) -> str:
     
     Use this tool to verify that a technical setup is backed by strong fundamental growth, good ratios, and high/stable promoter ownership.
     """
-    with duckdb.connect(DB_PATH) as c:
+    with duckdb.connect(DB_PATH, read_only=True) as c:
         df = c.execute("""
             WITH latest_fetch AS (
                 SELECT MAX(fetch_date) as max_date FROM annual_results WHERE symbol = ?
@@ -420,7 +420,7 @@ def get_quarterly_fundamentals(symbol: str) -> str:
     
     Use this tool to check for earnings acceleration and increasing institutional/promoter interest over recent quarters.
     """
-    with duckdb.connect(DB_PATH) as c:
+    with duckdb.connect(DB_PATH, read_only=True) as c:
         df = c.execute("""
             SELECT symbol, quarter, eps, eps_growth_yoy, revenue, rev_growth_yoy, net_profit,
                    promoter_holding, fii_holding, dii_holding, fetch_date
@@ -448,7 +448,7 @@ def get_news(symbol: str, days: int = 14) -> str:
     Use this tool to check for recent news that might explain price action. For fresher news or to dig deeper into material events, use the `search_web` tool as a fallback.
     """
     days = max(1, min(int(days), 90))
-    with duckdb.connect(DB_PATH) as c:
+    with duckdb.connect(DB_PATH, read_only=True) as c:
         df = c.execute(f"""
             SELECT date, sentiment_score, material_event, summary
             FROM news WHERE symbol = ?
@@ -474,7 +474,7 @@ def get_research_notes(symbol: str = "", days: int = 45) -> str:
     Use this tool to maintain continuity across your research sessions and recall why you were watching or rejected a stock.
     """
     days = max(1, min(int(days), 365))
-    with duckdb.connect(DB_PATH) as c:
+    with duckdb.connect(DB_PATH, read_only=True) as c:
         if symbol:
             df = c.execute(f"""
                 SELECT symbol, date, conviction, status, entry_trigger, thesis, risk_factors
@@ -492,44 +492,6 @@ def get_research_notes(symbol: str = "", days: int = 45) -> str:
     return _fmt(df, "no research notes found")
 
 
-def get_open_position_detail(symbol: str = "") -> str:
-    print(f"🔧 [TOOL CALL] get_open_position_detail for {symbol}")
-    """
-    Fetches detailed current context for open positions in your portfolio.
-    
-    Args:
-        symbol: NSE ticker without suffix, or "" for all open positions.
-        
-    Returns a table with:
-    - `symbol`: Stock symbol.
-    - `entry_date`, `entry_price`, `quantity`: Original trade details.
-    - `stop_loss`, `target`: Planned risk/reward levels.
-    - `position_pct`: Size of position as % of portfolio.
-    - `thesis_summary`: Brief rationale for the trade.
-    - `current_close`: Latest closing price.
-    - `pnl_pct`: Current Profit/Loss percentage.
-    - `rsi_14`, `adx_14`: Latest daily momentum indicators.
-    
-    Use this tool to review your portfolio, check if trailing stops are needed, or if a thesis is broken.
-    """
-    where = "WHERE p.status = 'OPEN'"
-    args: tuple = ()
-    if symbol:
-        where += " AND p.symbol = ?"
-        args = (symbol,)
-    with duckdb.connect(DB_PATH) as c:
-        df = c.execute(f"""
-            SELECT p.symbol, p.entry_date, p.entry_price, p.quantity,
-                   p.stop_loss, p.target, p.position_pct, p.thesis_summary,
-                   pr.close AS current_close, s.rsi_14, s.adx_14,
-                   round((pr.close - p.entry_price) / p.entry_price * 100, 2) AS pnl_pct
-            FROM portfolio p
-            LEFT JOIN signals s ON p.symbol = s.symbol
-            LEFT JOIN prices  pr ON p.symbol = pr.symbol AND s.date = pr.date
-            {where}
-            QUALIFY ROW_NUMBER() OVER (PARTITION BY p.symbol ORDER BY s.date DESC) = 1
-        """, args).fetchdf()
-    return _fmt(df, "no open positions")
 
 
 def get_position_history(symbol: str) -> str:
@@ -547,7 +509,7 @@ def get_position_history(symbol: str) -> str:
     
     Use this tool to judge if a position's thesis is still intact or if the character of the stock has changed negatively since entry.
     """
-    with duckdb.connect(DB_PATH) as c:
+    with duckdb.connect(DB_PATH, read_only=True) as c:
         row = c.execute(
             "SELECT entry_date FROM portfolio WHERE symbol = ? AND status='OPEN' LIMIT 1",
             (symbol,)

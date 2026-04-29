@@ -35,6 +35,14 @@ class PriceFetcher:
         last_date = self.get_last_updated_date(conn)
         conn.close()
         
+        # Adjust to_date if it is today and before 4 PM IST
+        today = datetime.date.today()
+        current_time = datetime.datetime.now(zoneinfo.ZoneInfo("Asia/Kolkata")).time()
+        
+        if to_date == today and current_time < datetime.time(16, 0):
+            to_date = today - datetime.timedelta(days=1)
+            print(f"Adjusted to_date to yesterday ({to_date}) because it is before 4 PM IST.")
+        
         # Incremental Update Optimization:
         # If we already have data, start fetching from the day after the last date
         if last_date:
@@ -43,14 +51,6 @@ class PriceFetcher:
         if from_date > to_date:
             print("Database is already up to date. Skipping price fetch.")
             return pd.DataFrame()
-        elif from_date == to_date:
-            current_time = datetime.datetime.now(zoneinfo.ZoneInfo("Asia/Kolkata")).time()
-            # Market closes at 3:30 PM, setting threshold to 4:00 PM to be safe
-            if current_time < datetime.time(16, 0):
-                print("Database is up to date for yesterday. Today's data might not be ready yet (before 4 PM). Skipping.")
-                return pd.DataFrame()
-            else:
-                print("It is after 4 PM. Attempting to fetch today's data...")
             
         print(f"Incremental Fetch: Downloading prices from {from_date} to {to_date}...")
         print(f"Fetching Yahoo Finance data for {len(symbols)} symbols in chunks of {chunk_size}...")

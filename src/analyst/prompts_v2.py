@@ -23,7 +23,6 @@ Use these tools to gather data for the target symbol:
 - get_quarterly_fundamentals(symbol)
 - get_news(symbol, days=14)
 - get_research_notes(symbol, days=45) (You MUST pass the target candidate symbol)
-- get_open_position_detail(symbol) (You MUST pass the target candidate symbol)
 - get_position_history(symbol)
 - search_web(query)
 - get_sector_peers(symbol)

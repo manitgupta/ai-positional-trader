@@ -278,6 +278,8 @@ def run_nightly_pipeline(no_journal=False, no_telegram=False):
         QUALIFY ROW_NUMBER() OVER(PARTITION BY s.symbol ORDER BY s.date DESC) = 1
     """
     candidate_data = conn.execute(query).fetchdf()
+    if os.environ.get("USE_MOTHERDUCK") == "true":
+        conn.execute("SET motherduck_dbinstance_inactivity_ttl='0s'")
     conn.close()
     
     # Merge with composite score computed earlier
@@ -287,6 +289,12 @@ def run_nightly_pipeline(no_journal=False, no_telegram=False):
     print("Top candidates passed to Gemini:")
     print(scored_candidates[['symbol', 'composite_score']].head(10))
     
+    # Ensure all forced symbols are included in candidates_df passed to graph
+    forced_rows = scored_candidates[scored_candidates['symbol'].isin(forced_symbols)]
+    non_forced_rows = scored_candidates[~scored_candidates['symbol'].isin(forced_symbols)]
+    top_non_forced = non_forced_rows.head(30)
+    combined_candidates_df = pd.concat([forced_rows, top_non_forced]).drop_duplicates(subset=['symbol'])
+    
     # 5. Gemini Analyst
     print("\n--- Phase 4: Gemini Analyst ---")
     total_candidates = len(candidate_symbols)
@@ -294,7 +302,7 @@ def run_nightly_pipeline(no_journal=False, no_telegram=False):
     print(f"Running LangGraph flow for {total_candidates} candidates...")
     
     memo = ""
-    for chunk in analyst_graph.stream({"candidates": candidate_symbols, "candidates_df": scored_candidates.head(30)}):
+    for chunk in analyst_graph.stream({"candidates": candidate_symbols, "candidates_df": combined_candidates_df}):
         for node_name, state_update in chunk.items():
             if node_name == "evaluate_candidate":
                 finished_evaluations += 1
