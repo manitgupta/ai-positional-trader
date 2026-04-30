@@ -32,8 +32,8 @@ class WeeklyPriceFetcher:
         to_date = datetime.date.today()
         
         if last_date:
-            # Start from the week after last_date
-            from_date = last_date + datetime.timedelta(days=7)
+            # Re-fetch the last recorded week to ensure ongoing cumulative updates
+            from_date = last_date
         else:
             # Default to 1 year ago if empty (assuming backfill was done for history)
             from_date = to_date - datetime.timedelta(days=365)
@@ -48,14 +48,14 @@ class WeeklyPriceFetcher:
         
         for i in range(0, len(symbols), chunk_size):
             chunk = symbols[i:i+chunk_size]
-            tickers = [f"{s}.NS" if not s.endswith('.NS') else s for s in chunk]
+            tickers = [f"{s}.NS" if not s.endswith('.NS') and not s.endswith('.BO') else s for s in chunk]
             tickers_str = " ".join(tickers)
             
             print(f"Fetching weekly batch {i // chunk_size + 1} ({len(chunk)} tickers)...")
             try:
                 import time
                 time.sleep(2) # Prevent rate limiting
-                df = yf.download(tickers_str, start=from_date, end=to_date, interval="1wk", progress=False, group_by='column')
+                df = yf.download(tickers_str, start=from_date, end=to_date + datetime.timedelta(days=1), interval="1wk", progress=False, group_by='column')
                 
                 if not df.empty:
                     if isinstance(df.columns, pd.MultiIndex):
@@ -99,9 +99,15 @@ class WeeklyPriceFetcher:
         try:
             conn.register('df_view', df)
             conn.execute("""
-                INSERT OR IGNORE INTO weekly_prices 
+                INSERT INTO weekly_prices 
                 SELECT symbol, date, open, high, low, close, volume 
                 FROM df_view
+                ON CONFLICT(symbol, date) DO UPDATE SET 
+                    open = excluded.open,
+                    high = excluded.high,
+                    low = excluded.low,
+                    close = excluded.close,
+                    volume = excluded.volume
             """)
             print(f"Saved {len(df)} weekly price rows to DB.")
         except Exception as e:
