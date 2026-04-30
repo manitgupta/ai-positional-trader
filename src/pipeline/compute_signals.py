@@ -45,7 +45,26 @@ class SignalComputer:
         finally:
             conn.close()
 
-    def compute_signals(self, df):
+    def load_prices_batch(self, symbols, start_date=None):
+        """Load prices from DB for a list of symbols."""
+        if not symbols:
+            return pd.DataFrame()
+        conn = duckdb.connect(self.db_path)
+        try:
+            symbols_str = "', '".join(symbols)
+            if start_date:
+                query = f"SELECT * FROM prices WHERE symbol IN ('{symbols_str}') AND date >= '{start_date}' ORDER BY symbol, date"
+            else:
+                query = f"SELECT * FROM prices WHERE symbol IN ('{symbols_str}') ORDER BY symbol, date"
+            df = conn.execute(query).fetchdf()
+            return df
+        except Exception as e:
+            print(f"Error loading batch prices: {e}")
+            return pd.DataFrame()
+        finally:
+            conn.close()
+
+    def compute_signals(self, df, nifty_df=None):
         """Compute signals using pandas-ta."""
         if df.empty or len(df) < 200:
             print(f"Not enough data to compute signals (need at least 200 rows, got {len(df)})")
@@ -102,7 +121,9 @@ class SignalComputer:
             df['bb_width'] = None
             
         # Daily RS vs Nifty
-        nifty_df = self.load_prices("^NSEI")
+        if nifty_df is None:
+            nifty_df = self.load_prices("^NSEI")
+            
         if not nifty_df.empty:
             nifty_df = nifty_df.set_index(pd.to_datetime(nifty_df['date']))
             rs_ratio = df['close'] / nifty_df['close']

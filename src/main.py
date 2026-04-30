@@ -73,35 +73,57 @@ def run_nightly_pipeline(no_journal=False, no_telegram=False):
     updated_count = 0
     skipped_count = len(universe_symbols) - len(symbols_to_update)
     
-    for symbol in symbols_to_update:
-        row = to_update_df[to_update_df['symbol'] == symbol].iloc[0]
-        last_date = row['max_signal_date']
+    if symbols_to_update:
+        print("Pre-loading Nifty benchmark prices...")
+        nifty_df = computer.load_prices("^NSEI")
         
-        if pd.notna(last_date):
-            if isinstance(last_date, str):
-                last_date = datetime.datetime.strptime(last_date, "%Y-%m-%d").date()
-            elif isinstance(last_date, datetime.datetime):
-                last_date = last_date.date()
-            elif isinstance(last_date, datetime.date):
-                last_date = last_date
-                
-            start_date = last_date - datetime.timedelta(days=300)
-            df = computer.load_prices(symbol, start_date=start_date)
-        else:
-            df = computer.load_prices(symbol)
-            last_date = None
+        # Load enough history for MAs (2 years gives > 200 trading days)
+        lookback_date = datetime.date.today() - datetime.timedelta(days=730)
+        print(f"Batch loading prices from {lookback_date}...")
+        
+        all_signals = []
+        chunk_size = 100
+        
+        for i in range(0, len(symbols_to_update), chunk_size):
+            chunk = symbols_to_update[i:i+chunk_size]
+            print(f"Processing batch {i//chunk_size + 1} ({len(chunk)} symbols)...")
             
-        if not df.empty and len(df) >= 200:
-            signals_df = computer.compute_signals(df)
-            
-            if last_date:
-                signals_df['date_obj'] = pd.to_datetime(signals_df['date']).dt.date
-                signals_df = signals_df[signals_df['date_obj'] > last_date]
-                signals_df = signals_df.drop(columns=['date_obj'])
+            batch_prices = computer.load_prices_batch(chunk, start_date=lookback_date)
+            if batch_prices.empty:
+                continue
                 
-            if not signals_df.empty:
-                computer.save_signals(signals_df)
-                updated_count += 1
+            for symbol, df in batch_prices.groupby('symbol'):
+                # Extract previous max signal date from our metadata df
+                symbol_meta = to_update_df[to_update_df['symbol'] == symbol]
+                if symbol_meta.empty:
+                    continue
+                last_date = symbol_meta.iloc[0]['max_signal_date']
+                
+                if pd.notna(last_date):
+                    if isinstance(last_date, str):
+                        last_date = datetime.datetime.strptime(last_date, "%Y-%m-%d").date()
+                    elif isinstance(last_date, datetime.datetime):
+                        last_date = last_date.date()
+                        
+                # Compute signals
+                if not df.empty and len(df) >= 200:
+                    signals_df = computer.compute_signals(df, nifty_df=nifty_df)
+                    
+                    if not signals_df.empty:
+                        # Filter to keep only NEW signals beyond last_date
+                        if pd.notna(last_date):
+                            signals_df['date_obj'] = pd.to_datetime(signals_df['date']).dt.date
+                            signals_df = signals_df[signals_df['date_obj'] > last_date]
+                            signals_df = signals_df.drop(columns=['date_obj'])
+                            
+                        if not signals_df.empty:
+                            all_signals.append(signals_df)
+                            updated_count += 1
+                            
+        if all_signals:
+            combined_signals = pd.concat(all_signals, ignore_index=True)
+            print(f"Performing batch save for {len(combined_signals)} calculated signal rows...")
+            computer.save_signals(combined_signals)
             
     print(f"Completed technical signals: {updated_count} updated, {skipped_count} skipped.")
             
