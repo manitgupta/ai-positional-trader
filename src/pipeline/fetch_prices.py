@@ -35,13 +35,13 @@ class PriceFetcher:
         last_date = self.get_last_updated_date(conn)
         conn.close()
         
-        # Adjust to_date if it is today and before 4 PM IST
+        # Adjust to_date if it is today and before 8 PM IST (delivery data availability)
         today = datetime.date.today()
         current_time = datetime.datetime.now(zoneinfo.ZoneInfo("Asia/Kolkata")).time()
         
-        if to_date == today and current_time < datetime.time(16, 0):
+        if to_date == today and current_time < datetime.time(20, 0):
             to_date = today - datetime.timedelta(days=1)
-            print(f"Adjusted to_date to yesterday ({to_date}) because it is before 4 PM IST.")
+            print(f"Adjusted to_date to yesterday ({to_date}) because it is before 8 PM IST.")
         
         # Incremental Update Optimization:
         # If we already have data, start fetching from the day after the last date

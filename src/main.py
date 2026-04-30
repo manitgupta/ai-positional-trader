@@ -16,6 +16,7 @@ from src.pipeline.fetch_weekly import WeeklyPriceFetcher
 from src.pipeline.compute_signals import SignalComputer
 from src.pipeline.fetch_fundamentals import FundamentalsManager
 from src.pipeline.fetch_news import NewsFetcher
+from src.pipeline.fetch_delivery import DeliveryFetcher
 # from src.screener.filters import passes_hard_filters
 from src.screener.scorer import compute_composite_scores
 from src.analyst.context_builder import ContextBuilder
@@ -53,6 +54,11 @@ def run_nightly_pipeline(no_journal=False, no_telegram=False):
     weekly_fetcher = WeeklyPriceFetcher(DB_PATH)
     weekly_df = weekly_fetcher.fetch_batch_weekly_data(universe_symbols, chunk_size=100)
     weekly_fetcher.save_to_db(weekly_df)
+    
+    # Fetch daily delivery volume data from NSE
+    print("Fetching daily delivery percentage statistics...")
+    delivery_fetcher = DeliveryFetcher(DB_PATH)
+    delivery_fetcher.fetch_latest()
         
     computer = SignalComputer(DB_PATH)
     print("Checking which symbols need technical signals update...")

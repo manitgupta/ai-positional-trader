@@ -145,3 +145,13 @@ INSERT INTO account (id, total_capital, updated_at)
 SELECT 1, 1000000.0, current_timestamp
 WHERE NOT EXISTS (SELECT 1 FROM account WHERE id = 1);
 
+-- Delivery volume stats fetched from NSE archive files
+CREATE TABLE IF NOT EXISTS delivery_data (
+    symbol          VARCHAR,
+    date            DATE,
+    traded_qty      BIGINT,
+    deliverable_qty BIGINT,
+    delivery_pct    DOUBLE,
+    PRIMARY KEY (symbol, date)
+);
+

@@ -317,6 +317,7 @@ def get_price_history(symbol: str, days: int = 30) -> str:
     - `rs_rank`: Percentile rank (0-100) vs the universe based on 12m return.
     - `pct_from_52w_high`: How close the stock is to its yearly high.
     - `volume_ratio_20d`: Current volume vs 20-day average.
+    - `delivery_pct`: % of traded volume resulting in deliveries. (>50% indicates institutional accumulation).
     - `bb_width`: Bollinger Band Width. Low values indicate a squeeze.
     - `daily_rs`: 20-day smoothed ratio of stock to Nifty 50.
     
@@ -326,13 +327,14 @@ def get_price_history(symbol: str, days: int = 30) -> str:
     days = max(1, min(int(days), 1200))
     with duckdb.connect(DB_PATH, read_only=True) as c:
         df = c.execute(f"""
-            SELECT s.date, p.close, p.volume,
+            SELECT s.date, p.close, p.volume, d.delivery_pct,
                    s.rsi_14, s.adx_14, s.atr_14, s.macd_hist,
                    s.sma_50, s.sma_150, s.sma_200,
                    s.rs_rank, s.pct_from_52w_high, s.volume_ratio_20d,
                    s.bb_width, s.daily_rs
             FROM signals s
             JOIN prices p ON s.symbol = p.symbol AND s.date = p.date
+            LEFT JOIN delivery_data d ON s.symbol = d.symbol AND s.date = d.date
             WHERE s.symbol = ?
             ORDER BY s.date DESC
             LIMIT {days}
