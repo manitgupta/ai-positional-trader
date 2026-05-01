@@ -3,6 +3,7 @@ import datetime
 import zoneinfo
 import pandas as pd
 import duckdb
+from config import connect_db
 import yfinance as yf
 from dotenv import load_dotenv
 
@@ -31,7 +32,7 @@ class PriceFetcher:
 
     def fetch_batch_eod_data(self, symbols, from_date, to_date, chunk_size=100):
         """Fetch EOD data for a list of symbols from Yahoo Finance in chunks."""
-        conn = duckdb.connect(self.db_path)
+        conn = connect_db(self.db_path)
         last_date = self.get_last_updated_date(conn)
         conn.close()
         
@@ -105,7 +106,7 @@ class PriceFetcher:
         if df.empty:
             return
             
-        conn = duckdb.connect(self.db_path)
+        conn = connect_db(self.db_path)
         try:
             conn.register('df_view', df)
             conn.execute("""

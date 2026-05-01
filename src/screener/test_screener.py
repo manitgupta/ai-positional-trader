@@ -2,6 +2,7 @@ import os
 import sys
 import duckdb
 import pandas as pd
+from config import connect_db
 
 # Add project root to path to ensure imports work
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -13,7 +14,7 @@ from src.screener.scorer import compute_composite_scores
 
 def run_test_screener(db_path):
     print(f"Running updated screener on DB: {db_path}")
-    conn = duckdb.connect(db_path)
+    conn = connect_db(db_path)
     try:
         # Query to compute returns and turnover in SQL, and apply loose filters
         query = """

@@ -15,7 +15,7 @@ from src.analyst.gemini_call import ANALYST_TOOLS
 from src.analyst.parser import extract_json_blocks
 from src.analyst.context_builder import ContextBuilder
 from src.analyst.tools import get_macro_snapshot
-from config import GEMINI_MODEL, DB_PATH
+from config import GEMINI_MODEL, DB_PATH, connect_db
 import pandas as pd
 
 load_dotenv(override=True)
@@ -204,7 +204,7 @@ def map_candidates(state: OverallState):
     import duckdb
     open_positions_df = pd.DataFrame()
     try:
-        with duckdb.connect(DB_PATH, read_only=True) as c:
+        with connect_db(DB_PATH, read_only=True) as c:
             open_positions_df = c.execute("""
                 SELECT p.symbol, p.entry_date, p.entry_price, p.quantity,
                        p.stop_loss, p.target, p.position_pct, p.thesis_summary,

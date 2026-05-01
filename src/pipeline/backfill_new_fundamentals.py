@@ -4,6 +4,7 @@ import datetime
 import duckdb
 from dotenv import load_dotenv
 from src.pipeline.fetch_fundamentals import FundamentalsManager
+from config import connect_db
 
 load_dotenv()
 
@@ -20,7 +21,7 @@ def backfill_new_fundamentals():
     manager = FundamentalsManager(DB_PATH)
     
     # Query for ALL symbols in universe
-    conn = duckdb.connect(DB_PATH)
+    conn = connect_db(DB_PATH)
     try:
         symbols_df = conn.execute("""
             SELECT symbol FROM universe 

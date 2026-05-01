@@ -3,6 +3,7 @@ import datetime
 import duckdb
 import pandas as pd
 from src.analyst.tools import get_macro_snapshot
+from config import connect_db
 
 
 class ContextBuilder:
@@ -11,7 +12,7 @@ class ContextBuilder:
 
     def _capital(self) -> str:
         try:
-            with duckdb.connect(self.db_path, read_only=True) as c:
+            with connect_db(self.db_path, read_only=True) as c:
                 total = (
                     c.execute("SELECT total_capital FROM account LIMIT 1").fetchone()
                     or [1_000_000.0]
@@ -34,7 +35,7 @@ class ContextBuilder:
 
     def _open_positions(self) -> str:
         try:
-            with duckdb.connect(self.db_path, read_only=True) as c:
+            with connect_db(self.db_path, read_only=True) as c:
                 df = c.execute("""
                     SELECT symbol, entry_date, entry_price, stop_loss, target
                     FROM portfolio WHERE status = 'OPEN'
@@ -46,7 +47,7 @@ class ContextBuilder:
 
     def _journal_symbols(self, target_symbol: str = None) -> str:
         try:
-            with duckdb.connect(self.db_path, read_only=True) as c:
+            with connect_db(self.db_path, read_only=True) as c:
                 if target_symbol:
                     res = c.execute("""
                         SELECT DISTINCT symbol FROM research_journal

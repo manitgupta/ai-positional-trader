@@ -4,6 +4,7 @@ import datetime
 import duckdb
 from dotenv import load_dotenv
 from src.pipeline.fetch_fundamentals import FundamentalsManager
+from config import connect_db
 
 load_dotenv()
 
@@ -21,7 +22,7 @@ def backfill_fundamentals():
     
     # Query for symbols that need update
     # We consider data stale if older than 30 days for backfill purposes
-    conn = duckdb.connect(DB_PATH)
+    conn = connect_db(DB_PATH)
     try:
         symbols_df = conn.execute("""
             SELECT u.symbol

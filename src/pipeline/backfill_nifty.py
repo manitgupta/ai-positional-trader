@@ -7,14 +7,14 @@ from datetime import datetime, timedelta
 
 # Add project root to path to import config
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-from config import DB_PATH
+from config import DB_PATH, connect_db
 
 def backfill_nifty():
     symbol = "^NSEI"
     print(f"Starting backfill for {symbol}...")
     
     # Connect to DB
-    conn = duckdb.connect(DB_PATH)
+    conn = connect_db(DB_PATH)
     
     try:
         ticker = yf.Ticker(symbol)

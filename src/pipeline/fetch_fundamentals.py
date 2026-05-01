@@ -2,6 +2,7 @@ import os
 import time
 import pandas as pd
 import duckdb
+from config import connect_db
 import requests
 from bs4 import BeautifulSoup
 import json
@@ -346,7 +347,7 @@ class FundamentalsManager:
     def update_annual_data(self, symbol, force=False):
         # Check cache: skip if fetched within last 30 days for annual
         if not force:
-            conn = duckdb.connect(self.db_path)
+            conn = connect_db(self.db_path)
             try:
                 res = conn.execute("SELECT MAX(fetch_date) FROM annual_results WHERE symbol = ?", (symbol,)).fetchone()
                 if res and res[0]:
@@ -371,7 +372,7 @@ class FundamentalsManager:
     def update_quarterly_data(self, symbol, force=False):
         # Check cache: skip if fetched within last 7 days for quarterly
         if not force:
-            conn = duckdb.connect(self.db_path)
+            conn = connect_db(self.db_path)
             try:
                 res = conn.execute("SELECT MAX(fetch_date) FROM quarterly_results WHERE symbol = ?", (symbol,)).fetchone()
                 if res and res[0]:
@@ -394,7 +395,7 @@ class FundamentalsManager:
             self.save_quarterly_to_db(df)
             
     def save_annual_to_db(self, df):
-        conn = duckdb.connect(self.db_path)
+        conn = connect_db(self.db_path)
         try:
             df['fetch_date'] = datetime.date.today()
             conn.register('df_view', df)
@@ -411,7 +412,7 @@ class FundamentalsManager:
             conn.close()
 
     def save_quarterly_to_db(self, df):
-        conn = duckdb.connect(self.db_path)
+        conn = connect_db(self.db_path)
         try:
             df['fetch_date'] = datetime.date.today()
             conn.register('df_view', df)

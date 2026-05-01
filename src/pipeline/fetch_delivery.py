@@ -2,6 +2,7 @@ import os
 import datetime
 import pandas as pd
 import duckdb
+from config import connect_db
 from pathlib import Path
 from nse import NSE
 import time
@@ -14,7 +15,7 @@ class DeliveryFetcher:
         
     def get_last_updated_date(self):
         """Get the latest date stored in the delivery_data table."""
-        conn = duckdb.connect(self.db_path)
+        conn = connect_db(self.db_path)
         try:
             res = conn.execute("SELECT MAX(date) FROM delivery_data").fetchone()
             if res and res[0]:
@@ -68,7 +69,7 @@ class DeliveryFetcher:
         if df.empty:
             return
             
-        conn = duckdb.connect(self.db_path)
+        conn = connect_db(self.db_path)
         try:
             conn.register('df_view', df)
             conn.execute("""
@@ -153,7 +154,7 @@ class DeliveryFetcher:
             target_date = target_date - datetime.timedelta(days=2)
             
         # Check if already in DB
-        conn = duckdb.connect(self.db_path)
+        conn = connect_db(self.db_path)
         exists = conn.execute("SELECT COUNT(*) FROM delivery_data WHERE date = ?", (target_date,)).fetchone()[0]
         conn.close()
         

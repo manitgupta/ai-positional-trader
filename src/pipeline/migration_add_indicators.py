@@ -4,11 +4,11 @@ import sys
 
 # Add project root to path to import config
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-from config import DB_PATH
+from config import DB_PATH, connect_db
 
 def run_migration():
     print(f"Connecting to database at {DB_PATH}")
-    conn = duckdb.connect(DB_PATH)
+    conn = connect_db(DB_PATH)
     try:
         # Add columns to signals table
         print("Checking/Adding columns to signals table...")

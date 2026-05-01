@@ -6,14 +6,14 @@ import time
 
 # Add project root to path to import config
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-from config import DB_PATH
+from config import DB_PATH, connect_db
 from src.pipeline.compute_signals import SignalComputer
 
 def backfill_daily_signals():
     computer = SignalComputer(DB_PATH)
     
     # Get all unique symbols from universe
-    conn = duckdb.connect(DB_PATH)
+    conn = connect_db(DB_PATH)
     symbols = conn.execute("SELECT symbol FROM universe").fetchdf()['symbol'].tolist()
     conn.close()
     
@@ -24,7 +24,7 @@ def backfill_daily_signals():
             signals_df = computer.compute_signals(df)
             
             if not signals_df.empty:
-                conn = duckdb.connect(DB_PATH)
+                conn = connect_db(DB_PATH)
                 try:
                     conn.register('df_view', signals_df)
                     # Update existing rows with new indicators

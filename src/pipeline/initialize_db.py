@@ -1,5 +1,6 @@
 import duckdb
 import os
+from config import connect_db
 
 def initialize_db(db_path, schema_path):
     print(f"Initializing database at {db_path} using schema {schema_path}")
@@ -8,7 +9,7 @@ def initialize_db(db_path, schema_path):
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
     
     # Connect to DuckDB (creates file if not exists)
-    conn = duckdb.connect(db_path)
+    conn = connect_db(db_path)
     
     # Read schema
     with open(schema_path, 'r') as f:

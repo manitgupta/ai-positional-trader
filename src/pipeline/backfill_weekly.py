@@ -5,6 +5,7 @@ import pandas as pd
 import yfinance as yf
 import duckdb
 from dotenv import load_dotenv
+from config import connect_db
 
 load_dotenv()
 
@@ -17,7 +18,7 @@ def backfill_weekly():
         print(f"Database not found at {DB_PATH}")
         return
         
-    conn = duckdb.connect(DB_PATH)
+    conn = connect_db(DB_PATH)
     symbols = conn.execute("SELECT symbol FROM universe").fetchdf()['symbol'].tolist()
     conn.close()
     
@@ -61,7 +62,7 @@ def backfill_weekly():
                 df = df[['symbol', 'date', 'open', 'high', 'low', 'close', 'volume']]
                 df = df.dropna(subset=['open', 'high', 'low', 'close'])
                 
-                conn = duckdb.connect(DB_PATH)
+                conn = connect_db(DB_PATH)
                 conn.register('df_view', df)
                 conn.execute("""
                     INSERT OR IGNORE INTO weekly_prices 

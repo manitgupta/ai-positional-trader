@@ -7,7 +7,7 @@ import sys
 
 # Add project root to path to import config
 sys.path.append('/Users/manitgupta/experiments/ai-positional-trader')
-from config import DB_PATH
+from config import DB_PATH, connect_db
 
 def backfill_weekly(conn, symbols):
     print("Starting weekly data backfill (10 years)...")
@@ -117,7 +117,7 @@ def backfill_daily(conn, symbols):
 
 def main():
     print(f"Connecting to DB at {DB_PATH}")
-    conn = duckdb.connect(DB_PATH)
+    conn = connect_db(DB_PATH)
     
     # Get all symbols
     symbols = conn.execute("SELECT symbol FROM universe").fetchdf()['symbol'].tolist()

@@ -3,6 +3,7 @@ import datetime
 import pandas as pd
 import yfinance as yf
 import duckdb
+from config import connect_db
 
 class WeeklyPriceFetcher:
     def __init__(self, db_path):
@@ -25,7 +26,7 @@ class WeeklyPriceFetcher:
             
     def fetch_batch_weekly_data(self, symbols, chunk_size=100):
         """Fetch weekly data for a list of symbols from Yahoo Finance in chunks."""
-        conn = duckdb.connect(self.db_path)
+        conn = connect_db(self.db_path)
         last_date = self.get_last_weekly_date(conn)
         conn.close()
         
@@ -95,7 +96,7 @@ class WeeklyPriceFetcher:
             print("No weekly data to save.")
             return
             
-        conn = duckdb.connect(self.db_path)
+        conn = connect_db(self.db_path)
         try:
             conn.register('df_view', df)
             conn.execute("""

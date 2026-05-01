@@ -9,7 +9,7 @@ load_dotenv()
 
 # Add project root to path to import config
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
-from config import DB_PATH
+from config import DB_PATH, connect_db
 
 class WeeklySignalComputer:
     def __init__(self, db_path):
@@ -17,7 +17,7 @@ class WeeklySignalComputer:
 
     def load_weekly_prices(self, symbol):
         """Load weekly prices from DB for a symbol."""
-        conn = duckdb.connect(self.db_path)
+        conn = connect_db(self.db_path)
         try:
             query = f"SELECT * FROM weekly_prices WHERE symbol = '{symbol}' ORDER BY date"
             df = conn.execute(query).fetchdf()
@@ -30,7 +30,7 @@ class WeeklySignalComputer:
 
     def load_nifty_weekly(self):
         """Load Nifty 50 weekly prices."""
-        conn = duckdb.connect(self.db_path)
+        conn = connect_db(self.db_path)
         try:
             query = "SELECT date, close FROM weekly_prices WHERE symbol = '^NSEI' ORDER BY date"
             df = conn.execute(query).fetchdf()
@@ -45,7 +45,7 @@ class WeeklySignalComputer:
         """Load weekly prices from DB for a list of symbols."""
         if not symbols:
             return pd.DataFrame()
-        conn = duckdb.connect(self.db_path)
+        conn = connect_db(self.db_path)
         try:
             symbols_str = "', '".join(symbols)
             query = f"SELECT * FROM weekly_prices WHERE symbol IN ('{symbols_str}') ORDER BY symbol, date"
@@ -108,7 +108,7 @@ class WeeklySignalComputer:
         if df.empty:
             return
             
-        conn = duckdb.connect(self.db_path)
+        conn = connect_db(self.db_path)
         try:
             conn.register('df_view', df)
             conn.execute("""
@@ -126,7 +126,7 @@ def run_weekly_pipeline():
     computer = WeeklySignalComputer(DB_PATH)
     
     # Get all unique symbols from universe
-    conn = duckdb.connect(DB_PATH)
+    conn = connect_db(DB_PATH)
     symbols = conn.execute("SELECT symbol FROM universe").fetchdf()['symbol'].tolist()
     conn.close()
     

@@ -9,7 +9,7 @@ import sys
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(os.path.dirname(current_dir)))
 
-from config import DB_PATH
+from config import DB_PATH, connect_db
 from src.pipeline.fetch_delivery import DeliveryFetcher
 
 def run_backfill(days_lookback=1460):
@@ -18,7 +18,7 @@ def run_backfill(days_lookback=1460):
     fetcher = DeliveryFetcher(DB_PATH)
     
     # 1. Find existing dates in DB to avoid re-fetching
-    conn = duckdb.connect(DB_PATH)
+    conn = connect_db(DB_PATH)
     try:
         existing_dates = set(r[0] for r in conn.execute("SELECT DISTINCT date FROM delivery_data").fetchall())
     finally:
