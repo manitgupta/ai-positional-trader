@@ -10,7 +10,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 base_dir = os.path.dirname(current_dir)
 sys.path.append(base_dir)
 
-from config import DB_PATH
+from config import DB_PATH, connect_db
 from src.pipeline.fetch_prices import PriceFetcher
 from src.pipeline.fetch_weekly import WeeklyPriceFetcher
 from src.pipeline.compute_signals import SignalComputer
@@ -33,7 +33,7 @@ def run_nightly_pipeline(no_journal=False, no_telegram=False):
     print(f"🚀 Starting production nightly pipeline run at {datetime.datetime.now()}")
     
     # Load full universe from DB
-    conn = duckdb.connect(DB_PATH)
+    conn = connect_db(DB_PATH)
     universe_symbols = conn.execute("SELECT symbol FROM universe").fetchdf()['symbol'].tolist()
     conn.close()
     
@@ -63,7 +63,7 @@ def run_nightly_pipeline(no_journal=False, no_telegram=False):
     computer = SignalComputer(DB_PATH)
     print("Checking which symbols need technical signals update...")
     
-    conn = duckdb.connect(DB_PATH)
+    conn = connect_db(DB_PATH)
     to_update_df = conn.execute("""
         SELECT p.symbol, MAX(s.date) as max_signal_date
         FROM prices p
@@ -135,7 +135,7 @@ def run_nightly_pipeline(no_journal=False, no_telegram=False):
             
     # Compute RS Rank percentiles globally
     print("Computing global RS Rank percentiles...")
-    conn = duckdb.connect(DB_PATH)
+    conn = connect_db(DB_PATH)
     print("Executing single-query update for RS Rank...")
     try:
         conn.execute("""
@@ -164,7 +164,7 @@ def run_nightly_pipeline(no_journal=False, no_telegram=False):
             
     # 2. Screener - Step 1: Technical Filters & Signals in SQL
     print("\n--- Phase 2: Screener (SQL Filters & Scoring) ---")
-    conn = duckdb.connect(DB_PATH)
+    conn = connect_db(DB_PATH)
     
     # Query to compute returns and turnover in SQL, and apply loose filters
     query = """
@@ -273,7 +273,7 @@ def run_nightly_pipeline(no_journal=False, no_telegram=False):
         news_fetcher.save_to_db(news_df)
         
     # Refresh data with fundamentals for Gemini
-    conn = duckdb.connect(DB_PATH)
+    conn = connect_db(DB_PATH)
     query = f"""
         WITH quarterly_growth AS (
             SELECT symbol, quarter, eps_growth_yoy, rev_growth_yoy,

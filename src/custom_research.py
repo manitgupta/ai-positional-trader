@@ -9,7 +9,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 base_dir = os.path.dirname(current_dir)
 sys.path.append(base_dir)
 
-from config import DB_PATH
+from config import DB_PATH, connect_db
 from src.pipeline.fetch_fundamentals import FundamentalsManager
 from src.pipeline.fetch_news import NewsFetcher
 from src.analyst.graph import app as analyst_graph
@@ -33,7 +33,7 @@ def run_custom_research(candidate_symbols):
         news_fetcher.save_to_db(news_df)
         
     # Refresh data with fundamentals for Gemini
-    conn = duckdb.connect(DB_PATH)
+    conn = connect_db(DB_PATH)
     
     # Construct query to get candidate data
     # We assume prices and signals already exist in the DB for these symbols

@@ -1,7 +1,7 @@
 import os
 import duckdb
 import pandas as pd
-from config import DB_PATH
+from config import DB_PATH, connect_db
 from google import genai
 from google.genai import types
 
@@ -29,7 +29,7 @@ def execute_read_only_query(query: str) -> str:
         if keyword in query_clean:
             return f"Error: Modification keyword '{keyword}' detected. Query rejected."
             
-    conn = duckdb.connect(DB_PATH, read_only=True)
+    conn = connect_db(DB_PATH, read_only=True)
     try:
         result_df = conn.execute(query).fetchdf()
         if result_df.empty:

@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 import duckdb
+from config import connect_db
 
 def load_universe(csv_path, db_path):
     print(f"Loading universe from {csv_path} to {db_path}")
@@ -23,7 +24,7 @@ def load_universe(csv_path, db_path):
     
     print(f"Parsed {len(universe_df)} common stock equities.")
     
-    conn = duckdb.connect(db_path)
+    conn = connect_db(db_path)
     try:
         conn.register('df_view', universe_df)
         conn.execute("""

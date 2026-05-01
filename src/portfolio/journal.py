@@ -1,13 +1,14 @@
 import os
 import datetime
 import duckdb
+from config import connect_db
 
 class ResearchJournal:
     def __init__(self, db_path):
         self.db_path = db_path
         
     def add_entry(self, symbol, thesis, conviction, status, entry_trigger=None, risk_factors=None):
-        conn = duckdb.connect(self.db_path)
+        conn = connect_db(self.db_path)
         try:
             # Get next ID
             next_id_res = conn.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM research_journal").fetchone()
@@ -29,7 +30,7 @@ class ResearchJournal:
             conn.close()
             
     def get_recent_notes(self, days=45):
-        conn = duckdb.connect(self.db_path)
+        conn = connect_db(self.db_path)
         try:
             query = f"""
                 SELECT * FROM research_journal 

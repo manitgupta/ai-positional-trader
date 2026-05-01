@@ -2,6 +2,7 @@ import os
 import datetime
 import pandas as pd
 import duckdb
+from config import connect_db
 import requests
 import xml.etree.ElementTree as ET
 from dotenv import load_dotenv
@@ -28,7 +29,7 @@ class NewsFetcher:
         all_items = []
         
         # Get company name for better matching
-        with duckdb.connect(self.db_path) as conn:
+        with connect_db(self.db_path) as conn:
             row = conn.execute("SELECT company_name FROM universe WHERE symbol = ?", (symbol,)).fetchone()
             company_name = row[0] if row else symbol
             
@@ -114,7 +115,7 @@ class NewsFetcher:
         if df.empty:
             return
             
-        conn = duckdb.connect(self.db_path)
+        conn = connect_db(self.db_path)
         try:
             conn.register('df_view', df)
             conn.execute("""

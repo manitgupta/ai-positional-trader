@@ -1,4 +1,5 @@
 import os
+import duckdb
 from dotenv import load_dotenv
 
 load_dotenv(override=True)
@@ -34,3 +35,9 @@ RUN_TIME_IST = "16:05"               # 35 min after market close
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = "md:trading_db" if os.environ.get("USE_MOTHERDUCK") == "true" else os.path.join(BASE_DIR, "data", "universe.duckdb")
 SCHEMA_PATH = os.path.join(BASE_DIR, "data", "schema.sql")
+
+
+def connect_db(db_path, read_only=False):
+    conn = duckdb.connect(db_path, read_only=read_only)
+    conn.execute("SET motherduck_dbinstance_inactivity_ttl='0s'")
+    return conn

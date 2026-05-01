@@ -1,13 +1,14 @@
 import os
 import datetime
 import duckdb
+from config import connect_db
 
 class PortfolioManager:
     def __init__(self, db_path):
         self.db_path = db_path
         
     def open_position(self, symbol, entry_price, quantity, stop_loss, target, position_pct, thesis_summary, entry_date=None):
-        conn = duckdb.connect(self.db_path)
+        conn = connect_db(self.db_path)
         try:
             if entry_date is None:
                 entry_date = datetime.date.today()
@@ -22,7 +23,7 @@ class PortfolioManager:
             conn.close()
             
     def close_position(self, symbol, exit_price, exit_date=None):
-        conn = duckdb.connect(self.db_path)
+        conn = connect_db(self.db_path)
         try:
             if exit_date is None:
                 exit_date = datetime.date.today()
@@ -38,7 +39,7 @@ class PortfolioManager:
             conn.close()
             
     def update_stop_loss(self, symbol, new_stop):
-        conn = duckdb.connect(self.db_path)
+        conn = connect_db(self.db_path)
         try:
             conn.execute("""
                 UPDATE portfolio SET stop_loss = ? WHERE symbol = ? AND status = 'OPEN'
@@ -50,7 +51,7 @@ class PortfolioManager:
             conn.close()
             
     def get_open_positions(self):
-        conn = duckdb.connect(self.db_path)
+        conn = connect_db(self.db_path)
         try:
             return conn.execute("SELECT * FROM portfolio WHERE status = 'OPEN'").fetchdf()
         except Exception as e:
