@@ -3,6 +3,7 @@ import pandas as pd
 import pandas_ta as ta
 import duckdb
 import sys
+import datetime
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -104,7 +105,7 @@ class WeeklySignalComputer:
         return result_df
 
     def save_signals(self, df):
-        """Save weekly signals to DB."""
+        """Save weekly signals to DB using ON CONFLICT DO UPDATE."""
         if df.empty:
             return
             
@@ -112,9 +113,15 @@ class WeeklySignalComputer:
         try:
             conn.register('df_view', df)
             conn.execute("""
-                INSERT OR IGNORE INTO weekly_signals 
+                INSERT INTO weekly_signals 
                 SELECT symbol, date, sma_10, sma_30, rsi_14, volume_ratio_10w, mansfield_rs
                 FROM df_view
+                ON CONFLICT(symbol, date) DO UPDATE SET
+                    sma_10           = excluded.sma_10,
+                    sma_30           = excluded.sma_30,
+                    rsi_14           = excluded.rsi_14,
+                    volume_ratio_10w = excluded.volume_ratio_10w,
+                    mansfield_rs     = excluded.mansfield_rs
             """)
             print(f"Saved {len(df)} total weekly signal rows to DB.")
         except Exception as e:
@@ -122,32 +129,99 @@ class WeeklySignalComputer:
         finally:
             conn.close()
 
+    def update_incremental(self):
+        """Find symbols needing update, load recent price data, and compute/save signals."""
+        print("Checking which weekly signals need update...")
+        conn = connect_db(self.db_path)
+        try:
+            to_update_df = conn.execute("""
+                SELECT p.symbol, MAX(s.date) AS max_signal_date
+                FROM weekly_prices p
+                LEFT JOIN weekly_signals s ON p.symbol = s.symbol
+                GROUP BY p.symbol
+                HAVING MAX(p.date) > MAX(s.date) OR MAX(s.date) IS NULL
+            """).fetchdf()
+        except Exception as e:
+            print(f"Error checking incremental status: {e}")
+            to_update_df = pd.DataFrame()
+        finally:
+            conn.close()
+
+        if to_update_df.empty:
+            print("Weekly signals are already up to date.")
+            return
+            
+        symbols_to_update = to_update_df['symbol'].tolist()
+        print(f"{len(symbols_to_update)} symbols need weekly signal computation.")
+        
+        print("Loading Nifty weekly benchmark...")
+        nifty_df = self.load_nifty_weekly()
+        
+        all_weekly_signals = []
+        
+        chunk_size = 100
+        for i in range(0, len(symbols_to_update), chunk_size):
+            chunk = symbols_to_update[i:i+chunk_size]
+            symbols_str = "', '".join(chunk)
+            
+            conn = connect_db(self.db_path)
+            try:
+                # Load last ~80 weeks using ROW_NUMBER for partition-based limit
+                query = f"""
+                    WITH numbered AS (
+                        SELECT *, ROW_NUMBER() OVER(PARTITION BY symbol ORDER BY date DESC) as rn
+                        FROM weekly_prices
+                        WHERE symbol IN ('{symbols_str}')
+                    )
+                    SELECT * FROM numbered WHERE rn <= 80 ORDER BY symbol, date
+                """
+                batch_prices = conn.execute(query).fetchdf()
+            except Exception as e:
+                print(f"Error fetching prices for chunk: {e}")
+                batch_prices = pd.DataFrame()
+            finally:
+                conn.close()
+                
+            if batch_prices.empty:
+                continue
+                
+            for symbol, df in batch_prices.groupby('symbol'):
+                df = df.sort_values('date')
+                
+                # Look up the max signal date for this symbol
+                meta = to_update_df[to_update_df['symbol'] == symbol]
+                if meta.empty:
+                    continue
+                last_date = meta.iloc[0]['max_signal_date']
+                
+                if pd.notna(last_date):
+                    if isinstance(last_date, str):
+                        last_date = datetime.datetime.strptime(last_date, "%Y-%m-%d").date()
+                    elif isinstance(last_date, datetime.datetime):
+                        last_date = last_date.date()
+                
+                signals_df = self.compute_signals(df, nifty_df)
+                
+                if not signals_df.empty:
+                    if pd.notna(last_date):
+                        # Keep only rows newer than max_signal_date
+                        signals_df['date_obj'] = pd.to_datetime(signals_df['date']).dt.date
+                        signals_df = signals_df[signals_df['date_obj'] > last_date]
+                        signals_df = signals_df.drop(columns=['date_obj'])
+                        
+                    if not signals_df.empty:
+                        all_weekly_signals.append(signals_df)
+                        
+        if all_weekly_signals:
+            combined_df = pd.concat(all_weekly_signals, ignore_index=True)
+            print(f"Saving {len(combined_df)} new calculated weekly signal rows...")
+            self.save_signals(combined_df)
+        else:
+            print("No new weekly signals to save.")
+
 def run_weekly_pipeline():
     computer = WeeklySignalComputer(DB_PATH)
-    
-    # Get all unique symbols from universe
-    conn = connect_db(DB_PATH)
-    symbols = conn.execute("SELECT symbol FROM universe").fetchdf()['symbol'].tolist()
-    conn.close()
-    
-    print(f"Fetching weekly prices for {len(symbols)} symbols...")
-    all_prices = computer.load_weekly_prices_batch(symbols)
-    nifty_df = computer.load_nifty_weekly()
-    
-    all_weekly_signals = []
-    print(f"Computing weekly signals...")
-    
-    if not all_prices.empty:
-        for symbol, df in all_prices.groupby('symbol'):
-            signals_df = computer.compute_signals(df, nifty_df)
-            if not signals_df.empty:
-                all_weekly_signals.append(signals_df)
-                
-    if all_weekly_signals:
-        combined_df = pd.concat(all_weekly_signals, ignore_index=True)
-        computer.save_signals(combined_df)
-    else:
-        print("No weekly signals were computed.")
+    computer.update_incremental()
 
 if __name__ == "__main__":
     run_weekly_pipeline()

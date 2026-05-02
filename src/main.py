@@ -13,6 +13,7 @@ sys.path.append(base_dir)
 from config import DB_PATH, connect_db
 from src.pipeline.fetch_prices import PriceFetcher
 from src.pipeline.fetch_weekly import WeeklyPriceFetcher
+from src.pipeline.compute_weekly_signals import WeeklySignalComputer
 from src.pipeline.compute_signals import SignalComputer
 from src.pipeline.fetch_fundamentals import FundamentalsManager
 from src.pipeline.fetch_news import NewsFetcher
@@ -65,6 +66,10 @@ def run_nightly_pipeline(no_journal=False, no_telegram=False):
     weekly_fetcher = WeeklyPriceFetcher(DB_PATH)
     weekly_df = weekly_fetcher.fetch_batch_weekly_data(universe_symbols, chunk_size=100)
     weekly_fetcher.save_to_db(weekly_df)
+    
+    print("Computing weekly signals incrementally...")
+    weekly_signals_computer = WeeklySignalComputer(DB_PATH)
+    weekly_signals_computer.update_incremental()
     
     # Fetch daily delivery volume data from NSE
     print("Fetching daily delivery percentage statistics...")

@@ -345,6 +345,7 @@ def get_price_history(symbol: str, days: int = 30) -> str:
 def get_weekly_history(symbol: str, weeks: int = 10) -> str:
     """
     Fetches weekly price history and technical signals for a requested `symbol`.
+    NOTE: Data contains ONLY fully closed weekly candles (never partial weeks).
     
     Args:
         symbol: NSE ticker without suffix (e.g., "RELIANCE").

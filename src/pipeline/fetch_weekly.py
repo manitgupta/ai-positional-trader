@@ -26,24 +26,25 @@ class WeeklyPriceFetcher:
             
     def fetch_batch_weekly_data(self, symbols, chunk_size=100):
         """Fetch weekly data for a list of symbols from Yahoo Finance in chunks."""
+        from src.pipeline.weekly_calendar import last_closed_week_monday
+        expected_last = last_closed_week_monday()
+        
         conn = connect_db(self.db_path)
-        last_date = self.get_last_weekly_date(conn)
+        last_stored = self.get_last_weekly_date(conn)
         conn.close()
         
-        to_date = datetime.date.today()
-        
-        if last_date:
-            # Re-fetch the last recorded week to ensure ongoing cumulative updates
-            from_date = last_date
-        else:
-            # Default to 1 year ago if empty (assuming backfill was done for history)
-            from_date = to_date - datetime.timedelta(days=365)
-            
-        if from_date >= to_date:
-            print("Weekly database is already up to date. Skipping.")
+        if last_stored and last_stored >= expected_last:
+            print(f"Weekly DB already current through {expected_last}. Skipping.")
             return pd.DataFrame()
             
-        print(f"Incremental Weekly Fetch: Downloading from {from_date} to {to_date}...")
+        today = datetime.date.today()
+        
+        if last_stored:
+            from_date = last_stored + datetime.timedelta(days=1)
+        else:
+            from_date = today - datetime.timedelta(days=365)
+            
+        print(f"Incremental Weekly Fetch: Downloading from {from_date} through expected last {expected_last}...")
         
         all_data = []
         
@@ -56,7 +57,7 @@ class WeeklyPriceFetcher:
             try:
                 import time
                 time.sleep(2) # Prevent rate limiting
-                df = yf.download(tickers_str, start=from_date, end=to_date + datetime.timedelta(days=1), interval="1wk", progress=False, group_by='column')
+                df = yf.download(tickers_str, start=from_date, end=today + datetime.timedelta(days=1), interval="1wk", progress=False, group_by='column')
                 
                 if not df.empty:
                     if isinstance(df.columns, pd.MultiIndex):
@@ -81,7 +82,11 @@ class WeeklyPriceFetcher:
                     df = df[['symbol', 'date', 'open', 'high', 'low', 'close', 'volume']]
                     df = df.dropna(subset=['open', 'high', 'low', 'close'])
                     
-                    all_data.append(df)
+                    # Filter out any partial in-progress week
+                    df = df[df['date'] <= expected_last]
+                    
+                    if not df.empty:
+                        all_data.append(df)
                     
             except Exception as e:
                 print(f"Error fetching weekly chunk starting at {i}: {e}")
