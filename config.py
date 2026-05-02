@@ -33,7 +33,15 @@ RUN_TIME_IST = "16:05"               # 35 min after market close
 
 # Paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = "md:trading_db" if os.environ.get("USE_MOTHERDUCK") == "true" else os.path.join(BASE_DIR, "data", "universe.duckdb")
+DEFAULT_LOCAL_DB = os.path.join(BASE_DIR, "data", "universe.duckdb")
+
+# Check for explicit test/override path first, then MotherDuck toggle, then default local.
+if os.environ.get("OVERRIDE_DB_PATH"):
+    DB_PATH = os.environ.get("OVERRIDE_DB_PATH")
+elif os.environ.get("USE_MOTHERDUCK") == "true":
+    DB_PATH = "md:trading_db"
+else:
+    DB_PATH = DEFAULT_LOCAL_DB
 SCHEMA_PATH = os.path.join(BASE_DIR, "data", "schema.sql")
 
 
