@@ -114,6 +114,7 @@ Write a full investment thesis for your top 3–5 candidates based on the evalua
 where conviction ≥ 8. If the list has no strong setups, say so — do not
 force trades. Each thesis must include:
 - What you like: detailed evidence of why it passed the buy setup (citing specific technicals + fundamentals, and daily/weekly action). **You MUST include a delivery data comment**: state the delivery_pct on the key breakout or pivot day and whether it indicates institutional accumulation (>50%) or speculative activity (<30%). If delivery data was unavailable, state that explicitly.
+- Origin/Lineage: Reference the Prior State Snapshot. State clearly if this is a "Fresh Screen" triggering on day one, or a "Watchlist Graduation". If graduated, you MUST cite the total `days_tracked` as a sign of patience and confirmation.
 - Entry trigger: specific price level or volume condition required before entry.
 - Stop loss: level and structural rationale.
 - Target and time horizon.
