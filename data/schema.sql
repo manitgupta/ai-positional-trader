@@ -155,3 +155,24 @@ CREATE TABLE IF NOT EXISTS delivery_data (
     PRIMARY KEY (symbol, date)
 );
 
+CREATE TABLE IF NOT EXISTS symbol_state (
+    symbol                  VARCHAR PRIMARY KEY,
+    first_seen_date         DATE,        -- first time agent wrote about it
+    last_seen_date          DATE,        -- most recent review
+    days_tracked            INTEGER,     -- (last_seen - first_seen) in calendar days
+    current_status          VARCHAR,     -- WATCHING | TRIGGERED | ENTERED | EXITED | REJECTED | STALE
+    current_conviction      INTEGER,     -- latest score 1-10
+    current_thesis          VARCHAR,     -- latest one-paragraph view
+    current_entry_trigger   VARCHAR,
+    current_stop_loss       DOUBLE,
+    current_target          DOUBLE,
+    conviction_history      VARCHAR,     -- JSON: [{"date": "2026-04-18", "conviction": 7}, ...] capped at 10 most recent
+    status_history          VARCHAR,     -- JSON: [{"date": "...", "status": "WATCHING", "reason": "..."}, ...] capped at 10
+    trigger_history         VARCHAR,     -- JSON: [{"date": "...", "entry_trigger": "..."}] capped at 5
+    trigger_static_days     INTEGER,     -- calendar days the entry_trigger string has been unchanged
+    rejection_reason        VARCHAR,     -- only set when current_status = REJECTED
+    last_action             VARCHAR,     -- raw action emitted last run (e.g., "WATCH_FOR_ENTRY")
+    last_run_date           DATE,
+    updated_at              TIMESTAMP
+);
+

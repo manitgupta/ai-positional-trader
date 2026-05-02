@@ -26,14 +26,25 @@ from src.analyst.parser import extract_json_blocks
 from src.portfolio.journal import ResearchJournal
 from src.portfolio.manager import PortfolioManager
 from src.notifications.telegram import send_research_report
-
-
+from scripts.migrate_symbol_state import backfill_symbol_state
 
 def run_nightly_pipeline(no_journal=False, no_telegram=False):
     print(f"🚀 Starting production nightly pipeline run at {datetime.datetime.now()}")
     
-    # Load full universe from DB
     conn = connect_db(DB_PATH)
+    
+    # 0. Auto-Bootstrap check
+    try:
+        state_count = conn.execute("SELECT COUNT(*) FROM symbol_state").fetchone()[0]
+        journal_count = conn.execute("SELECT COUNT(*) FROM research_journal").fetchone()[0]
+        if state_count == 0 and journal_count > 0:
+            print("⚠️ Found empty symbol_state but existing research_journal. Auto-bootstrapping...")
+            bcnt = backfill_symbol_state(conn)
+            print(f"✅ Auto-bootstrapped state for {bcnt} symbols.")
+    except Exception as e:
+        print(f"Note: Could not verify symbol_state bootstrap: {e}")
+
+    # Load full universe from DB
     universe_symbols = conn.execute("SELECT symbol FROM universe").fetchdf()['symbol'].tolist()
     conn.close()
     
@@ -224,18 +235,47 @@ def run_nightly_pipeline(no_journal=False, no_telegram=False):
         
     journal_symbols = []
     try:
-        journal_symbols = conn.execute("""
-            SELECT symbol FROM (
-                SELECT symbol, status, date,
-                ROW_NUMBER() OVER(PARTITION BY symbol ORDER BY date DESC) as rn
-                FROM research_journal
-                WHERE date > current_date - INTERVAL 30 DAY
-            ) WHERE rn = 1 AND status IN ('watchlist', 'watchlist_entry', 'WATCH_FOR_ENTRY', 'buy_setup')
-        """).fetchdf()['symbol'].tolist()
+        # Check if symbol_state has actionable data
+        st_cnt = conn.execute("SELECT COUNT(*) FROM symbol_state WHERE current_status IN ('WATCHING', 'TRIGGERED')").fetchone()[0]
+        if st_cnt > 0:
+            journal_symbols = conn.execute("SELECT symbol FROM symbol_state WHERE current_status IN ('WATCHING', 'TRIGGERED')").fetchdf()['symbol'].tolist()
+        else:
+            journal_symbols = conn.execute("""
+                SELECT symbol FROM (
+                    SELECT symbol, status, date,
+                    ROW_NUMBER() OVER(PARTITION BY symbol ORDER BY date DESC) as rn
+                    FROM research_journal
+                    WHERE date > current_date - INTERVAL 30 DAY
+                ) WHERE rn = 1 AND status IN ('watchlist', 'watchlist_entry', 'WATCH_FOR_ENTRY', 'buy_setup')
+            """).fetchdf()['symbol'].tolist()
     except Exception:
         pass
         
     forced_symbols = list(set(portfolio_symbols + journal_symbols))
+    
+    # Build Candidate Sources for threading to prompt
+    screener_set = set(all_candidates['symbol'].tolist())
+    journal_set = set(journal_symbols)
+    
+    candidate_sources = {}
+    # 1. OPEN_POSITION (highest priority)
+    for s in portfolio_symbols:
+        candidate_sources[s] = "OPEN_POSITION"
+    
+    # 2. REPEAT_SCREEN
+    for s in screener_set:
+        if s in journal_set and s not in candidate_sources:
+             candidate_sources[s] = "REPEAT_SCREEN"
+             
+    # 3. CARRIED_WATCHLIST
+    for s in journal_set:
+        if s not in candidate_sources:
+            candidate_sources[s] = "CARRIED_WATCHLIST"
+            
+    # 4. FRESH_SCREEN
+    for s in screener_set:
+        if s not in candidate_sources:
+            candidate_sources[s] = "FRESH_SCREEN"
     
     # Combine query results with forced symbols
     conn.close()
@@ -332,7 +372,7 @@ def run_nightly_pipeline(no_journal=False, no_telegram=False):
     print(f"Running LangGraph flow for {total_candidates} candidates...")
     
     memo = ""
-    for chunk in analyst_graph.stream({"candidates": candidate_symbols, "candidates_df": combined_candidates_df}):
+    for chunk in analyst_graph.stream({"candidates": candidate_symbols, "candidates_df": combined_candidates_df, "candidate_sources": candidate_sources}):
         for node_name, state_update in chunk.items():
             if node_name == "evaluate_candidate":
                 finished_evaluations += 1
@@ -366,8 +406,18 @@ def run_nightly_pipeline(no_journal=False, no_telegram=False):
             
             if not no_journal:
                 journal.add_entry(symbol, thesis, conviction, action, dec.get('entry_trigger'))
+                journal.upsert_state(
+                    symbol=symbol,
+                    action=action,
+                    conviction=conviction,
+                    thesis=thesis,
+                    entry_trigger=dec.get('entry_trigger'),
+                    stop_loss=dec.get('stop_loss') or dec.get('new_stop'),
+                    target=dec.get('target'),
+                    rejection_reason=dec.get('rejection_reason') or dec.get('justification') # fallback mapping
+                )
             else:
-                print(f"Skipping journal entry for {symbol} (no-journal mode)")
+                print(f"Skipping journal/state update for {symbol} (no-journal mode)")
 
     # 7. Generate Telegram Summary & Send Report
     send_research_report(memo, no_telegram=no_telegram)

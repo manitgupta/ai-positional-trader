@@ -24,6 +24,7 @@ load_dotenv(override=True)
 class OverallState(TypedDict):
     candidates: List[str]
     candidates_df: pd.DataFrame
+    candidate_sources: Dict[str, str]
     evaluations: Annotated[List[Dict[str, Any]], operator.add]
     selected_candidates: List[Dict[str, Any]]
     final_memo: str
@@ -32,6 +33,7 @@ class OverallState(TypedDict):
 class CandidateState(TypedDict):
     candidate: str
     context: str
+    source: str
 
 # 2. Define Nodes
 
@@ -43,8 +45,9 @@ def fetch_macro_data(state: OverallState):
 def evaluate_candidate(state: CandidateState):
     candidate = state["candidate"]
     context = state["context"]
+    source_tag = state.get("source", "FRESH_SCREEN")
     
-    print(f"🤖 Evaluating candidate: {candidate}")
+    print(f"🤖 Evaluating candidate: {candidate} (Source: {source_tag})")
     
     client = genai.Client()
     
@@ -59,6 +62,7 @@ def evaluate_candidate(state: CandidateState):
     
     prompt = f"""
     Target Candidate: {candidate}
+    Source Tag: {source_tag}
     
     General Context:
     {context}
@@ -67,7 +71,7 @@ def evaluate_candidate(state: CandidateState):
     - If it IS an open position, analyze it to determine if the thesis is intact and if you should HOLD, EXIT, or TRAIL_STOP. Use the pre-fetched position details provided in the context. Do not call get_open_position_detail.
     - If it is NOT an open position, analyze it as a potential new opportunity or watchlist item.
     
-    Please analyze {candidate} following the mandatory steps and output the JSON evaluation.
+    Please analyze {candidate} following the mandatory steps and output the JSON evaluation. Remember to include the "source" field exactly as provided above.
     """
     
     max_attempts = 3
@@ -88,6 +92,10 @@ def evaluate_candidate(state: CandidateState):
             else:
                 # Fallback: try to parse whole text as JSON if no markdown blocks
                 evaluation = json.loads(text.strip())
+            
+            # Ensure source is echoed even if LLM forgets
+            if "source" not in evaluation:
+                 evaluation["source"] = source_tag
                     
             return {"evaluations": [evaluation]}
             
@@ -95,7 +103,7 @@ def evaluate_candidate(state: CandidateState):
             print(f"❌ Error evaluating {candidate} (Attempt {attempt + 1}/{max_attempts}): {e}")
             if attempt == max_attempts - 1:
                 print(f"Skipping {candidate} after {max_attempts} failed attempts.")
-                return {"evaluations": [{"symbol": candidate, "action": "HOLD", "thesis": f"Error during analysis: {e}"}]}
+                return {"evaluations": [{"symbol": candidate, "action": "HOLD", "source": source_tag, "thesis": f"Error during analysis: {e}"}]}
             
             sleep_time = 2 ** attempt
             print(f"Waiting {sleep_time} seconds before retry...")
@@ -163,12 +171,36 @@ def synthesize_memo(state: OverallState):
     context_builder = ContextBuilder(DB_PATH)
     open_positions_text = context_builder._open_positions()
     
+    # Fetch prior symbol state for inclusion in synthesizer prompt
+    involved_symbols = list(set(
+        [ev.get("symbol") for ev in evaluations if ev.get("symbol")] +
+        [c.get("symbol") for c in selected_candidates if c.get("symbol")]
+    ))
+    
+    snapshot_text = "No prior state records found for the listed symbols."
+    if involved_symbols:
+        try:
+            with connect_db(DB_PATH, read_only=True) as conn:
+                sym_placeholders = ','.join(['?'] * len(involved_symbols))
+                df_hist = conn.execute(f"""
+                    SELECT symbol, days_tracked, trigger_static_days, conviction_history, current_status
+                    FROM symbol_state
+                    WHERE symbol IN ({sym_placeholders})
+                """, involved_symbols).fetchdf()
+                if not df_hist.empty:
+                    snapshot_text = df_hist.to_string(index=False)
+        except Exception as db_err:
+            print(f"Warning: could not fetch prior state snapshot: {db_err}")
+
     prompt = f"""
     Here is the Macro Snapshot for the market:
     {macro_snapshot}
     
     Here are the current Open Positions (symbol + entry info):
     {open_positions_text}
+    
+    Here is the Prior State Snapshot for historical context (from symbol_state):
+    {snapshot_text}
     
     Here are the detailed evaluations provided by the analysts:
     {json.dumps(evaluations, indent=2)}
@@ -180,6 +212,7 @@ def synthesize_memo(state: OverallState):
     Ensure that ALL Open Positions listed above are reviewed in SECTION 1 (Portfolio Review), utilizing the evaluations if available.
     Use the full evaluations to write detailed theses for the selected candidates in SECTION 2.
     Ensure you reference the Macro Snapshot where relevant to contextualize the environment.
+    Use the "Prior State Snapshot" context above for writing SECTION 3b (Carried names) specifically highlighting conviction trajectory and days tracked.
     """
     
     try:
@@ -222,15 +255,20 @@ def map_candidates(state: OverallState):
     open_position_symbols = set(open_positions_df["symbol"].tolist()) if not open_positions_df.empty else set()
     
     send_tasks = []
+    sources_map = state.get("candidate_sources", {})
+    
     for c in state["candidates"]:
         context = context_builder.build_context(state["candidates_df"], target_symbol=c, macro_snapshot=state.get("macro_snapshot"))
+        
+        src = sources_map.get(c, "FRESH_SCREEN")
+        context += f"\n\n## Source for {c}\n{src}\n(See evaluator prompt for the meaning of this tag.)"
         
         if c in open_position_symbols:
             pos_detail = open_positions_df[open_positions_df["symbol"] == c]
             pos_detail_str = pos_detail.to_string(index=False)
             context += f"\n\n## Open Position Detail (pre-fetched — use this, do not call get_open_position_detail)\n{pos_detail_str}"
             
-        send_tasks.append(Send("evaluate_candidate", {"candidate": c, "context": context}))
+        send_tasks.append(Send("evaluate_candidate", {"candidate": c, "context": context, "source": src}))
         
     return send_tasks
 

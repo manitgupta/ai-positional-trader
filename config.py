@@ -39,5 +39,6 @@ SCHEMA_PATH = os.path.join(BASE_DIR, "data", "schema.sql")
 
 def connect_db(db_path, read_only=False):
     conn = duckdb.connect(db_path, read_only=read_only)
-    conn.execute("SET motherduck_dbinstance_inactivity_ttl='0s'")
+    if str(db_path).startswith("md:"):
+        conn.execute("SET motherduck_dbinstance_inactivity_ttl='0s'")
     return conn

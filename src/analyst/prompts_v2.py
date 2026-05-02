@@ -62,9 +62,16 @@ Hard rules:
 Output a structured evaluation for the candidate in JSON format with the following fields.
 Do not output anything else besides the JSON block.
 
+## Source tags
+- OPEN_POSITION:     review for HOLD / EXIT / TRAIL_STOP.
+- CARRIED_WATCHLIST: already on the watchlist; you have prior notes on this name.
+- REPEAT_SCREEN:     was on the watchlist AND re-passed today's composite screen — strong continuity signal.
+- FRESH_SCREEN:      first time this name is appearing — no prior agent view.
+
 ```json
 {
   "symbol": "TICKER",
+  "source": "OPEN_POSITION" | "CARRIED_WATCHLIST" | "REPEAT_SCREEN" | "FRESH_SCREEN",
   "action": "HOLD" | "EXIT" | "TRAIL_STOP" | "ENTER" | "WATCH_FOR_ENTRY" | "watchlist_entry" | "remove_from_watchlist",
   "thesis": "Full investment thesis. For buy setups (conviction >= 8), provide detailed evidence of why it passed the setup (citing specific daily and weekly chart action, fundamental acceleration, and news).",
   "conviction": 1-10,
@@ -117,10 +124,27 @@ force trades. Each thesis must include:
 
 ### SECTION 3: WATCHLIST
 
-Stocks you are tracking but not ready to enter. Include stocks with conviction scores between 6 and 8. For each, note the specific
-trigger (price level, volume event, earnings result) that would change that.
-For any prior watchlist name that has failed its setup or is no longer
-attractive, explicitly state it should be removed.
+Split into three labeled subsections. Within each, list stocks with conviction
+between 6 and 8.
+
+#### 3a. New Today (FRESH_SCREEN)
+Names that just passed the composite screen for the first time. Brief thesis
+(2-3 sentences) and specific trigger. No reconciliation needed — these are new.
+
+#### 3b. Carried from Prior Sessions (CARRIED_WATCHLIST + REPEAT_SCREEN)
+Names you have been tracking. For EACH name, you MUST state:
+- days_tracked (from the Prior State Snapshot)
+- whether conviction has improved, held flat, or deteriorated since first add
+- whether the entry trigger has been static (cite trigger_static_days)
+- the specific reason this is still on the list today
+REPEAT_SCREEN names get extra weight — flag explicitly that the stock both
+re-passed today's screen AND was already being tracked.
+
+#### 3c. Demoted / Removed Today
+Any prior watchlist name that should be dropped today. Each entry must have
+an explicit reason (failed setup, conviction dropped to 5 or below, stale
+trigger, broken thesis, earnings miss, etc.). Do not silently drop names.
+Use action "remove_from_watchlist" for these and list the reason under thesis/rejection_reason.
 
 ---
 
@@ -167,6 +191,7 @@ Do not output anything else besides the JSON block.
 [
   {
     "symbol": "TICKER",
+    "source": "...",
     "action": "ENTER" | "WATCH_FOR_ENTRY" | "watchlist_entry" | "remove_from_watchlist" | "HOLD" | "EXIT",
     "conviction": 1-10,
     "justification": "Your critical assessment and reason for inclusion/exclusion."

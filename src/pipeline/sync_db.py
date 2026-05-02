@@ -17,6 +17,13 @@ from config import DB_PATH # This points to local file or MD string depending on
 LOCAL_DB_PATH = os.path.join(base_dir, "data", "universe.duckdb")
 MD_DB_NAME = "trading_db"
 
+# Central list of tables to sync
+KNOWN_TABLES = [
+    'universe', 'prices', 'weekly_prices', 'signals', 'weekly_signals', 
+    'annual_results', 'quarterly_results', 'news', 'research_journal', 
+    'portfolio', 'account', 'delivery_data', 'symbol_state'
+]
+
 def get_md_connection():
     md_token = os.environ.get("MOTHERDUCK_TOKEN")
     if not md_token:
@@ -51,9 +58,7 @@ def push_to_motherduck():
         # Attach local DB
         conn.execute(f"ATTACH '{LOCAL_DB_PATH}' AS local_db (TYPE DUCKDB)")
         
-        known_tables = ['universe', 'prices', 'weekly_prices', 'signals', 'weekly_signals', 'annual_results', 'quarterly_results', 'news', 'research_journal', 'portfolio', 'account']
-        
-        for table in known_tables:
+        for table in KNOWN_TABLES:
             print(f"Syncing table {table} to MotherDuck...")
             try:
                 # Copy data into the table created by schema
@@ -65,6 +70,8 @@ def push_to_motherduck():
             except Exception as e:
                 print(f"Error syncing {table}: {e}")
                 
+        # Ensure persistence
+        conn.execute(f"CHECKPOINT {MD_DB_NAME}")
         print("Push completed successfully!")
     except Exception as e:
         print(f"Error during push: {e}")
@@ -84,28 +91,25 @@ def pull_from_motherduck():
         # Attach local DB
         conn.execute(f"ATTACH '{LOCAL_DB_PATH}' AS local_db (TYPE DUCKDB)")
         
+        # Switch context to local_db so schema and drops run there automatically
+        conn.execute("USE local_db")
+        
         # Apply schema to local DB first
         print("Applying schema to local DB...")
         with open(os.path.join(base_dir, "data", "schema.sql"), "r") as f:
             schema_sql = f.read()
             
         # We need to drop tables in local DB first to enforce schema
-        known_tables = ['universe', 'prices', 'weekly_prices', 'signals', 'weekly_signals', 'annual_results', 'quarterly_results', 'news', 'research_journal', 'portfolio', 'account']
-        
-        for table in known_tables:
+        for table in KNOWN_TABLES:
             try:
-                conn.execute(f"DROP TABLE IF EXISTS local_db.{table}")
+                conn.execute(f"DROP TABLE IF EXISTS {table}")
             except Exception as e:
                 print(f"Error dropping local table {table}: {e}")
                 
-        # Now run schema on local DB
-        modified_schema = schema_sql.replace("CREATE TABLE IF NOT EXISTS ", "CREATE TABLE IF NOT EXISTS local_db.")
-        modified_schema = modified_schema.replace("CREATE TABLE ", "CREATE TABLE local_db.")
-        modified_schema = modified_schema.replace("INSERT INTO account", "INSERT INTO local_db.account")
+        # Now run schema directly on local DB context
+        conn.execute(schema_sql)
         
-        conn.execute(modified_schema)
-        
-        for table in known_tables:
+        for table in KNOWN_TABLES:
             print(f"Syncing table {table} from MotherDuck...")
             try:
                 # Copy data
@@ -117,6 +121,8 @@ def pull_from_motherduck():
             except Exception as e:
                 print(f"Error syncing {table}: {e}")
                 
+        # Ensure persistence to local disk
+        conn.execute("CHECKPOINT local_db")
         print("Pull completed successfully!")
     except Exception as e:
         print(f"Error during pull: {e}")

@@ -214,7 +214,10 @@ def send_research_report(memo, no_telegram=False):
     - A professional header with the date {today}.
     - A 📊 <b>PORTFOLIO REVIEW</b> section summarizing the status of open positions and any actions needed.
     - A 🚀 <b>BUY SETUPS</b> section with clean, structured details and detailed evidence of why it passed for each top candidate.
-    - A 👀 <b>WATCHLIST</b> section with specific triggers.
+    - A 👀 <b>WATCHLIST</b> section split into:
+      ✨ <i>New Today</i> — fresh from today's screen
+      📌 <i>Carried</i> — note days_tracked and conviction trajectory
+      ❌ <i>Demoted</i> — with reason
     """
     
     try:
